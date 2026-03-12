@@ -33,13 +33,13 @@ class TestDefaults:
     def test_engine_config_defaults(self) -> None:
         ec = EngineConfig()
         # Nested configs
-        assert ec.ollama.host == "http://localhost:11434"
+        assert ec.ollama.host == ""
         assert ec.vllm.host == "http://localhost:8000"
         assert ec.sglang.host == "http://localhost:30000"
         assert ec.llamacpp.host == "http://localhost:8080"
         assert ec.llamacpp.binary_path == ""
         # Backward-compat properties still work
-        assert ec.ollama_host == "http://localhost:11434"
+        assert ec.ollama_host == ""
         assert ec.vllm_host == "http://localhost:8000"
 
 
@@ -208,7 +208,7 @@ class TestAgentConfigNew:
 class TestNestedEngineConfig:
     def test_nested_access(self) -> None:
         ec = EngineConfig()
-        assert ec.ollama.host == "http://localhost:11434"
+        assert ec.ollama.host == ""
         assert ec.vllm.host == "http://localhost:8000"
         assert ec.sglang.host == "http://localhost:30000"
         assert ec.llamacpp.host == "http://localhost:8080"

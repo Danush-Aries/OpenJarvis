@@ -257,7 +257,7 @@ def recommend_model(hw: HardwareInfo, engine: str) -> str:
 class OllamaEngineConfig:
     """Per-engine config for Ollama."""
 
-    host: str = "http://localhost:11434"
+    host: str = ""
 
 
 @dataclass(slots=True)

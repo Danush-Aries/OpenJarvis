@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 import click
@@ -154,7 +155,11 @@ def pull(model_name: str) -> None:
     """Download a model (Ollama only)."""
     console = Console()
     config = load_config()
-    host = config.engine.ollama_host.rstrip("/")
+    host = (
+        config.engine.ollama_host
+        or os.environ.get("OLLAMA_HOST")
+        or "http://localhost:11434"
+    ).rstrip("/")
 
     console.print(f"Pulling [cyan]{model_name}[/cyan] via Ollama...")
     try:

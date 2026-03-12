@@ -27,16 +27,18 @@ class OllamaEngine(InferenceEngine):
 
     engine_id = "ollama"
 
+    _DEFAULT_HOST = "http://localhost:11434"
+
     def __init__(
         self,
-        host: str = "http://localhost:11434",
+        host: str | None = None,
         *,
         timeout: float = 1800.0,
     ) -> None:
-        # Allow OLLAMA_HOST env var to override the default
-        env_host = os.environ.get("OLLAMA_HOST")
-        if env_host:
-            host = env_host
+        # Priority: explicit host (from config.toml) > OLLAMA_HOST env var > default
+        if host is None:
+            env_host = os.environ.get("OLLAMA_HOST")
+            host = env_host or self._DEFAULT_HOST
         self._host = host.rstrip("/")
         self._client = httpx.Client(base_url=self._host, timeout=timeout)
 

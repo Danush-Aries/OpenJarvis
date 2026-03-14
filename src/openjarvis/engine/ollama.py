@@ -41,6 +41,8 @@ class OllamaEngine(InferenceEngine):
             host = env_host or self._DEFAULT_HOST
         self._host = host.rstrip("/")
         self._client = httpx.Client(base_url=self._host, timeout=timeout)
+        # Last stream usage — captured from Ollama's final chunk
+        self._last_stream_usage: Dict[str, int] = {}
 
     def generate(
         self,
@@ -174,6 +176,15 @@ class OllamaEngine(InferenceEngine):
                     if content:
                         yield content
                     if chunk.get("done", False):
+                        # Capture usage from final chunk
+                        self._last_stream_usage = {
+                            "prompt_tokens": chunk.get("prompt_eval_count", 0),
+                            "completion_tokens": chunk.get("eval_count", 0),
+                            "total_tokens": (
+                                chunk.get("prompt_eval_count", 0)
+                                + chunk.get("eval_count", 0)
+                            ),
+                        }
                         break
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
             raise EngineConnectionError(

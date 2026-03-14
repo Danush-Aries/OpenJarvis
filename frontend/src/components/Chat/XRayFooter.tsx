@@ -35,7 +35,19 @@ export function XRayFooter({ usage, telemetry }: Props) {
     rows.push({ label: 'Engine', value: `${telemetry.engine}${modelDetail ? ` (${modelDetail})` : ''}` });
   }
   if (usage) {
-    rows.push({ label: 'Tokens', value: `${usage.completion_tokens} generated \u00B7 ${usage.prompt_tokens} prompt` });
+    const tokenParts = [`${usage.completion_tokens} generated`, `${usage.prompt_tokens} prompt`];
+    // Estimate thinking tokens: if total generated >> visible output, the
+    // difference is internal reasoning (e.g. Qwen3.5 thinking mode).
+    if (telemetry?.tokens_per_sec && telemetry.total_ms && usage.completion_tokens > 50) {
+      const visibleEstimate = Math.ceil(
+        (telemetry.total_ms / 1000) * telemetry.tokens_per_sec,
+      );
+      if (usage.completion_tokens > visibleEstimate * 1.5) {
+        const thinking = usage.completion_tokens - visibleEstimate;
+        tokenParts.push(`~${thinking} thinking`);
+      }
+    }
+    rows.push({ label: 'Tokens', value: tokenParts.join(' \u00B7 ') });
   }
   if (telemetry?.tokens_per_sec) {
     rows.push({ label: 'Speed', value: `${Math.round(telemetry.tokens_per_sec)} tok/s` });

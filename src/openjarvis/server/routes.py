@@ -222,8 +222,9 @@ async def _handle_stream(engine, model: str, req: ChatCompletionRequest):
             yield "data: [DONE]\n\n"
             return
 
-        # Send finish chunk
-        finish_chunk = ChatCompletionChunk(
+        # Send finish chunk with usage data if available
+        import json as _json
+        finish_data = ChatCompletionChunk(
             id=chunk_id,
             model=model,
             choices=[StreamChoice(
@@ -231,7 +232,21 @@ async def _handle_stream(engine, model: str, req: ChatCompletionRequest):
                 finish_reason="stop",
             )],
         )
-        yield f"data: {finish_chunk.model_dump_json()}\n\n"
+        finish_dict = _json.loads(finish_data.model_dump_json())
+
+        # Pull usage from the engine if it tracked it during streaming
+        raw_engine = engine
+        # Unwrap InstrumentedEngine if present
+        if hasattr(raw_engine, "_inner"):
+            raw_engine = raw_engine._inner
+        # Unwrap MultiEngine if present
+        if hasattr(raw_engine, "_engine_for"):
+            raw_engine = raw_engine._engine_for(model)
+        stream_usage = getattr(raw_engine, "_last_stream_usage", None)
+        if isinstance(stream_usage, dict) and stream_usage.get("total_tokens", 0) > 0:
+            finish_dict["usage"] = stream_usage
+
+        yield f"data: {_json.dumps(finish_dict)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

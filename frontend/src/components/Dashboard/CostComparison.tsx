@@ -37,7 +37,7 @@ export function CostComparison() {
     >
       <h3 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
         <DollarSign size={16} style={{ color: 'var(--color-success)' }} />
-        Cost Comparison
+        Cost Comparison*
       </h3>
 
       {/* Local stats */}
@@ -111,6 +111,10 @@ export function CostComparison() {
           ))}
         </div>
       )}
+
+      <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
+        *Savings estimates assume local models (e.g. Qwen, Nemotron, Kimi) produce roughly the same number of tokens per request, on average, as closed-source cloud models.
+      </p>
     </div>
   );
 }

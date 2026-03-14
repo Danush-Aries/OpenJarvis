@@ -52,4 +52,6 @@ See how the OpenJarvis community saves money, energy, and compute by running AI 
   </table>
 </div>
 
-
+<p style="font-size:12px;opacity:0.6;margin-top:12px">
+*Dollar savings estimates assume local open-source models (e.g. Qwen, Nemotron, Kimi) produce roughly the same number of tokens per request, on average, as closed-source cloud models.
+</p>

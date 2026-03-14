@@ -581,7 +581,7 @@ export function SavingsDashboard({ apiUrl }: { apiUrl: string }) {
       </div>
 
       {/* Provider savings cards */}
-      <div style={styles.sectionHeading}>Savings vs Cloud Providers</div>
+      <div style={styles.sectionHeading}>Savings vs Cloud Providers*</div>
       <div style={styles.providersGrid}>
         {providers.map((p) => (
           <div
@@ -606,6 +606,10 @@ export function SavingsDashboard({ apiUrl }: { apiUrl: string }) {
             </div>
           </div>
         ))}
+      </div>
+
+      <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+        *Savings estimates assume local models (e.g. Qwen, Nemotron, Kimi) produce roughly the same number of tokens per request, on average, as closed-source cloud models.
       </div>
 
       {/* Cloud Agent Platforms */}

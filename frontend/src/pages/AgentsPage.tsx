@@ -17,6 +17,7 @@ import {
   fetchLearningLog,
   triggerLearning,
   fetchAgentTraces,
+  fetchManagedAgent,
 } from '../lib/api';
 import type { AgentTask, ChannelBinding, AgentTemplate, AgentMessage, ManagedAgent, LearningLogEntry, AgentTrace } from '../lib/api';
 import {
@@ -132,9 +133,11 @@ const AVAILABLE_TOOLS = [
 ];
 
 interface WizardState {
-  step: 1 | 2 | 3;
+  step: number;
   templateId: string;
   name: string;
+  instruction: string;
+  model: string;
   scheduleType: string;
   scheduleValue: string;
   selectedTools: string[];
@@ -155,6 +158,8 @@ function LaunchWizard({
     step: 1,
     templateId: '',
     name: '',
+    instruction: '',
+    model: '',
     scheduleType: 'manual',
     scheduleValue: '',
     selectedTools: [],
@@ -183,6 +188,10 @@ function LaunchWizard({
   }
 
   async function handleLaunch() {
+    if ((wizard.scheduleType === 'cron' || wizard.scheduleType === 'interval') && !wizard.instruction.trim()) {
+      toast.error('Instruction is required for scheduled agents');
+      return;
+    }
     if (!wizard.name.trim()) {
       toast.error('Agent name is required');
       return;
@@ -196,12 +205,18 @@ function LaunchWizard({
         learning_enabled: wizard.learningEnabled,
       };
       if (wizard.budget) config.budget = parseFloat(wizard.budget);
-      await createManagedAgent({
+      if (wizard.instruction.trim()) config.instruction = wizard.instruction.trim();
+      if (wizard.model) config.model = wizard.model;
+      const created = await createManagedAgent({
         name: wizard.name,
         template_id: wizard.templateId || undefined,
         config,
       });
       toast.success(`Agent "${wizard.name}" launched`);
+      // Auto-run first tick for interval agents
+      if (wizard.scheduleType === 'interval' && created.id) {
+        runManagedAgent(created.id).catch(() => {});
+      }
       onLaunched();
     } catch (err) {
       toast.error('Could not create agent', {
@@ -325,6 +340,51 @@ function LaunchWizard({
                   className="w-full px-3 py-2 rounded-lg text-sm bg-transparent outline-none"
                   style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                 />
+              </div>
+
+              {/* Instruction */}
+              <div>
+                <div className="text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  What should this agent do?
+                  {(wizard.scheduleType === 'cron' || wizard.scheduleType === 'interval') && (
+                    <span style={{ color: 'var(--color-error)' }}> *</span>
+                  )}
+                </div>
+                <textarea
+                  value={wizard.instruction}
+                  onChange={(e) => update({ instruction: e.target.value })}
+                  placeholder="e.g. Monitor my inbox and summarize new emails every hour"
+                  rows={3}
+                  className="w-full text-sm px-3 py-2 rounded-lg outline-none resize-none"
+                  style={{
+                    background: 'var(--color-bg-secondary)',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                />
+                <div className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+                  This instruction runs every tick. Tasks are optional one-off goals.
+                </div>
+              </div>
+
+              {/* Model */}
+              <div>
+                <div className="text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>Model</div>
+                <select
+                  value={wizard.model}
+                  onChange={(e) => update({ model: e.target.value })}
+                  className="w-full text-sm px-3 py-2 rounded-lg outline-none cursor-pointer"
+                  style={{
+                    background: 'var(--color-bg-secondary)',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  <option value="">Server default</option>
+                  {useAppStore.getState().models.map((m) => (
+                    <option key={m.id} value={m.id}>{m.id}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1034,12 +1094,47 @@ export function AgentsPage() {
   const handleRun = async (id: string) => {
     await runManagedAgent(id).catch(() => {});
     await refresh();
+    // Wait 3 seconds then check if the agent errored
+    setTimeout(async () => {
+      try {
+        const agent = await fetchManagedAgent(id);
+        if (agent.status === 'error') {
+          toast.error(`Agent "${agent.name}" failed`, {
+            description: agent.summary_memory?.replace(/^ERROR: /, '') || 'Unknown error',
+          });
+          useAppStore.getState().addLogEntry({
+            timestamp: Date.now(), level: 'error', category: 'model',
+            message: `Agent "${agent.name}" failed: ${agent.summary_memory || 'Unknown error'}`,
+          });
+        }
+      } catch {}
+      await refresh();
+    }, 3000);
   };
 
   const handleRecover = async (id: string) => {
     await recoverManagedAgent(id).catch(() => {});
     await refresh();
   };
+
+  const prevStatuses = useRef<Record<string, string>>({});
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const agents = await fetchManagedAgents();
+        for (const agent of agents) {
+          const prev = prevStatuses.current[agent.id];
+          if (prev && prev !== 'error' && agent.status === 'error') {
+            toast.error(`Agent "${agent.name}" failed`, {
+              description: agent.summary_memory?.replace(/^ERROR: /, '') || 'Unknown error',
+            });
+          }
+          prevStatuses.current[agent.id] = agent.status;
+        }
+      } catch {}
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (loading) {
     return (

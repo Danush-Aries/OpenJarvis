@@ -100,6 +100,28 @@ export async function fetchModels(): Promise<ModelInfo[]> {
   return data.data || [];
 }
 
+export async function pullModel(modelName: string): Promise<void> {
+  const res = await fetch(`${getBase()}/v1/models/pull`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: modelName }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to pull model: ${detail}`);
+  }
+}
+
+export async function deleteModel(modelName: string): Promise<void> {
+  const res = await fetch(`${getBase()}/v1/models/${encodeURIComponent(modelName)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new Error(`Failed to delete model: ${detail}`);
+  }
+}
+
 export async function fetchSavings(): Promise<SavingsData> {
   const res = await fetch(`${getBase()}/v1/savings`);
   if (!res.ok) throw new Error(`Failed to fetch savings: ${res.status}`);

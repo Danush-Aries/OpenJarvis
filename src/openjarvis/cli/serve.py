@@ -251,12 +251,41 @@ def serve(
         except Exception as exc:
             logger.debug("Agent manager init failed: %s", exc)
 
+    # Set up agent scheduler for cron/interval agents
+    agent_scheduler = None
+    if agent_manager is not None:
+        try:
+            from openjarvis.agents.executor import AgentExecutor
+            from openjarvis.agents.scheduler import AgentScheduler
+
+            executor = AgentExecutor(manager=agent_manager, event_bus=bus)
+            from openjarvis.system import SystemBuilder
+            system = SystemBuilder(config).build()
+            executor.set_system(system)
+
+            agent_scheduler = AgentScheduler(
+                manager=agent_manager,
+                executor=executor,
+                event_bus=bus,
+            )
+            for ag in agent_manager.list_agents():
+                sched_type = ag.get("config", {}).get("schedule_type", "manual")
+                if sched_type in ("cron", "interval") and ag["status"] not in (
+                    "archived", "error",
+                ):
+                    agent_scheduler.register_agent(ag["id"])
+            agent_scheduler.start()
+            console.print("  Scheduler: [cyan]active[/cyan]")
+        except Exception as exc:
+            logger.debug("Agent scheduler init failed: %s", exc)
+
     app = create_app(
         engine, model_name, agent=agent, bus=bus,
         engine_name=engine_name, agent_name=agent_key or "",
         channel_bridge=channel_bridge, config=config,
         speech_backend=speech_backend,
         agent_manager=agent_manager,
+        agent_scheduler=agent_scheduler,
     )
 
     console.print(

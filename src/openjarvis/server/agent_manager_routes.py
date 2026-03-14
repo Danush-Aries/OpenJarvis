@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from openjarvis.agents.manager import AgentManager
 
 try:
-    from fastapi import APIRouter, HTTPException
+    from fastapi import APIRouter, HTTPException, Request
     from pydantic import BaseModel
 except ImportError:
     raise ImportError("fastapi and pydantic are required for server routes")
@@ -70,14 +70,23 @@ def create_agent_manager_router(
         return {"agents": manager.list_agents()}
 
     @agents_router.post("")
-    async def create_agent(req: CreateAgentRequest):
+    async def create_agent(req: CreateAgentRequest, request: Request):
         if req.template_id:
-            return manager.create_from_template(
+            agent = manager.create_from_template(
                 req.template_id, req.name, overrides=req.config
             )
-        return manager.create_agent(
-            name=req.name, agent_type=req.agent_type, config=req.config
-        )
+        else:
+            agent = manager.create_agent(
+                name=req.name, agent_type=req.agent_type, config=req.config
+            )
+
+        # Register with scheduler if cron/interval
+        scheduler = getattr(request.app.state, "agent_scheduler", None)
+        sched_type = (req.config or {}).get("schedule_type", "manual")
+        if scheduler and sched_type in ("cron", "interval"):
+            scheduler.register_agent(agent["id"])
+
+        return agent
 
     @agents_router.get("/{agent_id}")
     async def get_agent(agent_id: str):

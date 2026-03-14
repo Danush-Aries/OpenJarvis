@@ -142,6 +142,23 @@ export async function deleteModel(modelName: string): Promise<void> {
   }
 }
 
+export async function preloadModel(modelName: string): Promise<void> {
+  // Trigger Ollama to load the model into memory (empty prompt, no generation).
+  const ollamaUrl = 'http://127.0.0.1:11434';
+  try {
+    const res = await fetch(`${ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: modelName, prompt: '', keep_alive: '5m' }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) throw new Error(`Preload failed: ${res.status}`);
+  } catch (e: any) {
+    if (e.name === 'TimeoutError') throw new Error('Model load timed out (120s)');
+    throw e;
+  }
+}
+
 export async function fetchSavings(): Promise<SavingsData> {
   const res = await fetch(`${getBase()}/v1/savings`);
   if (!res.ok) throw new Error(`Failed to fetch savings: ${res.status}`);

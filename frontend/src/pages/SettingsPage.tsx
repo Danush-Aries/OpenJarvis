@@ -107,11 +107,17 @@ export function SettingsPage() {
     input.click();
   };
 
+  const [confirmClear, setConfirmClear] = useState(false);
   const handleClear = () => {
-    if (confirm('Delete all conversations? This cannot be undone.')) {
-      localStorage.removeItem('openjarvis-conversations');
-      useAppStore.getState().loadConversations();
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 3000);
+      return;
     }
+    localStorage.removeItem('openjarvis-conversations');
+    useAppStore.getState().loadConversations();
+    setConfirmClear(false);
+    showSaved();
   };
 
   return (
@@ -302,11 +308,15 @@ export function SettingsPage() {
               <button
                 onClick={handleClear}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                style={{ color: 'var(--color-error)', border: '1px solid var(--color-error)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(220,38,38,0.1)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                style={{
+                  color: confirmClear ? 'white' : 'var(--color-error)',
+                  background: confirmClear ? 'var(--color-error)' : 'transparent',
+                  border: '1px solid var(--color-error)',
+                }}
+                onMouseEnter={(e) => { if (!confirmClear) e.currentTarget.style.background = 'rgba(220,38,38,0.1)'; }}
+                onMouseLeave={(e) => { if (!confirmClear) e.currentTarget.style.background = 'transparent'; }}
               >
-                <Trash2 size={12} /> Clear
+                <Trash2 size={12} /> {confirmClear ? 'Click again to confirm' : 'Clear'}
               </button>
             </SettingRow>
           </Section>

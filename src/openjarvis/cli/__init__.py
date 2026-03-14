@@ -45,6 +45,12 @@ def cli(ctx: click.Context, verbose: bool, quiet: bool) -> None:
     ctx.obj["quiet"] = quiet
     setup_logging(verbose=verbose, quiet=quiet)
 
+    # Check for updates on interactive commands
+    if not quiet and ctx.invoked_subcommand:
+        from openjarvis.cli._version_check import check_for_updates
+
+        check_for_updates(ctx.invoked_subcommand)
+
 
 cli.add_command(init, "init")
 cli.add_command(ask, "ask")

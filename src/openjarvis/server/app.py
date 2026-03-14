@@ -75,38 +75,8 @@ def create_app(
     channel_bridge:
         Optional channel bridge for multi-platform messaging.
     config:
-        Optional JarvisConfig for security guardrails and other settings.
+        Optional JarvisConfig for other settings.
     """
-    # Wrap engine with security guardrails if configured
-    security_enabled = (
-        config is not None
-        and getattr(config, "security", None)
-        and config.security.enabled
-    )
-    if security_enabled:
-        try:
-            from openjarvis.security.guardrails import GuardrailsEngine
-            from openjarvis.security.scanner import PIIScanner, SecretScanner
-            from openjarvis.security.types import RedactionMode
-
-            scanners = []
-            if config.security.secret_scanner:
-                scanners.append(SecretScanner())
-            if config.security.pii_scanner:
-                scanners.append(PIIScanner())
-            if scanners:
-                mode = RedactionMode(config.security.mode)
-                engine = GuardrailsEngine(
-                    engine,
-                    scanners=scanners,
-                    mode=mode,
-                    scan_input=config.security.scan_input,
-                    scan_output=config.security.scan_output,
-                    bus=bus,
-                )
-        except Exception as exc:
-            logger.debug("Security guardrails init skipped: %s", exc)
-
     app = FastAPI(
         title="OpenJarvis API",
         description="OpenAI-compatible API server for OpenJarvis",

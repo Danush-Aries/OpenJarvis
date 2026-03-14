@@ -96,6 +96,7 @@ def _run_agent(
     bus: EventBus,
     temperature: float,
     max_tokens: int,
+    capability_policy=None,
 ):
     """Instantiate and run an agent, returning the AgentResult."""
     # Import agents to trigger registration
@@ -129,6 +130,8 @@ def _run_agent(
         agent_kwargs["max_turns"] = config.agent.max_turns
         agent_kwargs["interactive"] = True
         agent_kwargs["confirm_callback"] = lambda prompt: True
+    if capability_policy is not None:
+        agent_kwargs["capability_policy"] = capability_policy
 
     agent = agent_cls(engine, model_name, **agent_kwargs)
     ctx = AgentContext()
@@ -355,6 +358,11 @@ def ask(
 
     engine_name, engine = resolved
 
+    # Apply security guardrails
+    from openjarvis.security import setup_security
+    sec = setup_security(config, engine, bus)
+    engine = sec.engine
+
     # Wrap engine with InstrumentedEngine for telemetry (energy + GPU metrics)
     energy_monitor = None
     want_energy = config.telemetry.gpu_metrics or enable_profile
@@ -400,6 +408,7 @@ def ask(
             result = _run_agent(
                 agent_name, query_text, engine, model_name,
                 parsed_tools, config, bus, temperature, max_tokens,
+                capability_policy=sec.capability_policy,
             )
         except EngineConnectionError as exc:
             console.print(f"[red]Engine error:[/red] {exc}")

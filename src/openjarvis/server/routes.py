@@ -359,10 +359,22 @@ async def savings(request: Request):
     agg = TelemetryAggregator(db_path)
     try:
         summary = agg.summary(since=session_start)
+        # Exclude cloud model tokens from savings — only local
+        # inference counts toward cost savings.
+        _cloud_prefixes = (
+            "gpt-", "o1-", "o3-", "o4-",
+            "claude-", "gemini-", "openrouter/",
+        )
+        local_models = [
+            m for m in summary.per_model
+            if not any(m.model_id.startswith(p) for p in _cloud_prefixes)
+        ]
         result = compute_savings(
-            prompt_tokens=sum(m.prompt_tokens for m in summary.per_model),
-            completion_tokens=sum(m.completion_tokens for m in summary.per_model),
-            total_calls=summary.total_calls,
+            prompt_tokens=sum(m.prompt_tokens for m in local_models),
+            completion_tokens=sum(
+                m.completion_tokens for m in local_models
+            ),
+            total_calls=sum(m.call_count for m in local_models),
             session_start=session_start if session_start else 0.0,
         )
         return savings_to_dict(result)

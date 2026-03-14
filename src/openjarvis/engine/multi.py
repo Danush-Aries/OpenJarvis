@@ -35,6 +35,8 @@ class MultiEngine(InferenceEngine):
             except Exception as exc:
                 logger.debug("Failed to list models for %s: %s", _key, exc)
 
+    _CLOUD_PREFIXES = ("gpt-", "o1-", "o3-", "o4-", "claude-", "gemini-", "openrouter/")
+
     def _engine_for(self, model: str) -> InferenceEngine:
         """Find the engine that owns a model, refreshing the map once if needed."""
         engine = self._model_map.get(model)
@@ -45,7 +47,20 @@ class MultiEngine(InferenceEngine):
         engine = self._model_map.get(model)
         if engine is not None:
             return engine
-        # Fall back to the first engine (usually Ollama)
+        # If model looks like a cloud model, route to the cloud engine
+        # rather than falling back to the local engine (which would 404).
+        if any(model.startswith(p) for p in self._CLOUD_PREFIXES):
+            for key, eng in self._engines:
+                if key == "cloud":
+                    logger.info("Routing cloud model %r to cloud engine", model)
+                    return eng
+        logger.warning(
+            "Model %r not found in any engine (known: %s)",
+            model,
+            ", ".join(sorted(self._model_map.keys())),
+        )
+        # Fall back to the first engine — caller will see the
+        # downstream error if the model doesn't exist there.
         return self._engines[0][1]
 
     def generate(

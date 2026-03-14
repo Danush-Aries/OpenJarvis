@@ -92,6 +92,11 @@ def serve(
 
     engine_name, engine = resolved
 
+    # Apply security guardrails
+    from openjarvis.security import setup_security
+    sec = setup_security(config, engine, bus)
+    engine = sec.engine
+
     # If cloud API keys are set, wrap with MultiEngine so both local
     # and cloud models appear in the model list and can be used.
     import os
@@ -164,6 +169,8 @@ def serve(
             if AgentRegistry.contains(agent_key):
                 agent_cls = AgentRegistry.get(agent_key)
                 agent_kwargs = {"bus": bus}
+                if sec.capability_policy is not None:
+                    agent_kwargs["capability_policy"] = sec.capability_policy
 
                 # Load tools for agents that support them
                 if getattr(agent_cls, "accepts_tools", False):

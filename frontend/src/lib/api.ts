@@ -142,7 +142,13 @@ export async function deleteModel(modelName: string): Promise<void> {
   }
 }
 
+const _CLOUD_PREFIXES = ['gpt-', 'o1-', 'o3-', 'o4-', 'claude-', 'gemini-', 'openrouter/'];
+
 export async function preloadModel(modelName: string): Promise<void> {
+  // Cloud models don't need Ollama preloading
+  if (_CLOUD_PREFIXES.some(p => modelName.startsWith(p))) {
+    return;
+  }
   // Trigger Ollama to load the model into memory (empty prompt, no generation).
   const ollamaUrl = 'http://127.0.0.1:11434';
   try {

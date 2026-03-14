@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Routes, Route } from 'react-router';
 import { Layout } from './components/Layout';
 import { ChatPage } from './pages/ChatPage';
@@ -122,6 +122,37 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [commandPaletteOpen, setCommandPaletteOpen, toggleSystemPanel]);
+
+  // Desktop auto-update check (runs once on launch)
+  const updateChecked = useRef(false);
+  useEffect(() => {
+    if (!isTauri() || updateChecked.current) return;
+    updateChecked.current = true;
+
+    (async () => {
+      try {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const update = await check();
+        if (update) {
+          await update.downloadAndInstall();
+          const { toast } = await import('sonner');
+          toast.info('Update ready', {
+            description: 'A new version has been downloaded. Restart to apply.',
+            duration: Infinity,
+            action: {
+              label: 'Restart Now',
+              onClick: async () => {
+                const { relaunch } = await import('@tauri-apps/plugin-process');
+                await relaunch();
+              },
+            },
+          });
+        }
+      } catch {
+        // Silent — no internet or endpoint issue
+      }
+    })();
+  }, []);
 
   if (!setupDone) {
     return <SetupScreen onReady={handleSetupReady} />;

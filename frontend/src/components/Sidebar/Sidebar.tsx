@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Loader2,
 } from 'lucide-react';
 import { ConversationList } from './ConversationList';
 import { useAppStore } from '../../lib/store';
@@ -29,6 +30,7 @@ export function Sidebar() {
   const selectedModel = useAppStore((s) => s.selectedModel);
   const serverInfo = useAppStore((s) => s.serverInfo);
   const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+  const modelLoading = useAppStore((s) => s.modelLoading);
 
   const settings = useAppStore((s) => s.settings);
   const updateSettings = useAppStore((s) => s.updateSettings);
@@ -120,16 +122,29 @@ export function Sidebar() {
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-bg-tertiary)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-secondary)')}
           >
-            <Cpu size={14} />
-            <span className="truncate flex-1 text-left" style={{ color: 'var(--color-text)' }}>
-              {selectedModel || serverInfo?.model || 'Select model'}
-            </span>
-            <kbd
-              className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-              style={{ background: 'var(--color-bg-tertiary)', color: 'var(--color-text-tertiary)' }}
-            >
-              ⌘K
-            </kbd>
+            {modelLoading ? (
+              <Loader2 size={14} className="animate-spin" style={{ color: 'var(--color-accent)' }} />
+            ) : (
+              <Cpu size={14} />
+            )}
+            <div className="flex-1 min-w-0">
+              <span className="truncate block text-left" style={{ color: 'var(--color-text)' }}>
+                {selectedModel || serverInfo?.model || 'Select model'}
+              </span>
+              {modelLoading && (
+                <span className="text-[10px] block" style={{ color: 'var(--color-accent)' }}>
+                  Loading model...
+                </span>
+              )}
+            </div>
+            {!modelLoading && (
+              <kbd
+                className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                style={{ background: 'var(--color-bg-tertiary)', color: 'var(--color-text-tertiary)' }}
+              >
+                ⌘K
+              </kbd>
+            )}
           </button>
 
           {/* Search */}

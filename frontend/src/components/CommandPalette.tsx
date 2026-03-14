@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, Cpu, X, Download, Loader2, Trash2, Check } from 'lucide-react';
 import { useAppStore } from '../lib/store';
-import { pullModel, deleteModel, fetchModels } from '../lib/api';
+import { pullModel, deleteModel, fetchModels, preloadModel } from '../lib/api';
 
 /** Popular models that users can download from the catalogue. */
 const CATALOGUE_MODELS = [
@@ -65,9 +65,25 @@ export function CommandPalette() {
     }
   }, [pullSuccess]);
 
-  const handleSelect = (modelId: string) => {
+  const handleSelect = async (modelId: string) => {
+    const previousModel = selectedModel;
     setSelectedModel(modelId);
     setCommandPaletteOpen(false);
+
+    // Preload the model if switching to a different one
+    if (modelId !== previousModel) {
+      const { setModelLoading, addLogEntry } = useAppStore.getState();
+      setModelLoading(true);
+      addLogEntry({ timestamp: Date.now(), level: 'info', category: 'model', message: `Switching to ${modelId}...` });
+      try {
+        await preloadModel(modelId);
+        addLogEntry({ timestamp: Date.now(), level: 'info', category: 'model', message: `${modelId} loaded` });
+      } catch (e: any) {
+        addLogEntry({ timestamp: Date.now(), level: 'error', category: 'model', message: `Failed to load ${modelId}: ${e.message}` });
+      } finally {
+        setModelLoading(false);
+      }
+    }
   };
 
   const refreshModels = async () => {

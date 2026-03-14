@@ -403,17 +403,53 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
     }
 
     let uv_bin = resolve_bin("uv");
+
+    // Verify uv is actually installed
+    if !std::path::Path::new(&uv_bin).exists() && uv_bin == "uv" {
+        let mut s = status.lock().await;
+        s.error = Some(
+            "Could not find 'uv' (Python package manager). \
+             Install it from https://astral.sh/uv then relaunch."
+                .into(),
+        );
+        return;
+    }
+
     let project_root = find_project_root();
 
     if project_root.is_none() {
         let mut s = status.lock().await;
         s.error = Some(
             "Could not find the OpenJarvis project directory. \
-             Set the OPENJARVIS_ROOT environment variable to the path \
-             containing pyproject.toml (e.g. export OPENJARVIS_ROOT=$HOME/OpenJarvis)."
+             Clone it with: git clone https://github.com/open-jarvis/OpenJarvis.git ~/OpenJarvis \
+             then relaunch."
                 .into(),
         );
         return;
+    }
+
+    // Kill any leftover server on our port from a previous run
+    {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        if client
+            .get(format!("http://127.0.0.1:{}/health", JARVIS_PORT))
+            .send()
+            .await
+            .is_ok()
+        {
+            // Something is already listening — try to kill it
+            #[cfg(unix)]
+            {
+                let _ = tokio::process::Command::new("fuser")
+                    .args(["-k", &format!("{}/tcp", JARVIS_PORT)])
+                    .output()
+                    .await;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
     }
 
     // Start with STARTUP_MODEL (just pulled) or preferred if already available.
@@ -426,6 +462,16 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
         FALLBACK_MODEL
     };
 
+    let root = project_root.as_ref().unwrap();
+    {
+        let mut s = status.lock().await;
+        s.detail = format!(
+            "Starting server with {} from {}...",
+            startup_model,
+            root.display(),
+        );
+    }
+
     let mut cmd = tokio::process::Command::new(&uv_bin);
     cmd.args([
             "run", "jarvis", "serve",
@@ -434,8 +480,8 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
             "--agent", "simple",
         ])
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .current_dir(project_root.as_ref().unwrap());
+        .stderr(std::process::Stdio::piped())
+        .current_dir(root);
     let jarvis_child = cmd.spawn();
 
     match jarvis_child {
@@ -446,8 +492,9 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
             let mut s = status.lock().await;
             s.error = Some(format!(
                 "Could not start jarvis server: {}. \
-                 Make sure uv is installed (https://astral.sh/uv) and the OpenJarvis repo is cloned",
-                e
+                 Make sure uv is installed (https://astral.sh/uv) and the OpenJarvis repo is cloned at {}",
+                e,
+                root.display(),
             ));
             return;
         }
@@ -457,8 +504,34 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
     let server_ok = wait_for_url(&server_url, Duration::from_secs(120)).await;
 
     if !server_ok {
+        // Try to read stderr from the failed process for a useful error
+        let mut stderr_msg = String::new();
+        {
+            let mut mgr = backend.lock().await;
+            if let Some(ref mut h) = mgr.jarvis {
+                if let Some(ref mut stderr) = h.child.stderr.take() {
+                    use tokio::io::AsyncReadExt;
+                    let mut buf = vec![0u8; 4096];
+                    if let Ok(n) = stderr.read(&mut buf).await {
+                        stderr_msg = String::from_utf8_lossy(&buf[..n]).to_string();
+                    }
+                }
+            }
+        }
+        let detail = if stderr_msg.is_empty() {
+            format!(
+                "Jarvis server did not start. Check that:\n\
+                 1. uv is installed ({})\n\
+                 2. The OpenJarvis repo is at {}\n\
+                 3. Run 'uv sync' in that directory",
+                uv_bin,
+                root.display(),
+            )
+        } else {
+            format!("Server failed to start: {}", stderr_msg.trim())
+        };
         let mut s = status.lock().await;
-        s.error = Some("Jarvis server did not become healthy in time.".into());
+        s.error = Some(detail);
         return;
     }
 

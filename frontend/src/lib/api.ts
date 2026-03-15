@@ -497,6 +497,7 @@ export interface AgentTrace {
   duration: number;
   started_at: number;
   steps: number;
+  error_message?: string;
 }
 
 export interface AgentTraceDetail {

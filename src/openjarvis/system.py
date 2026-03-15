@@ -752,7 +752,12 @@ class SystemBuilder:
         if tool_names is None:
             raw = config.tools.enabled or config.agent.tools
             if raw:
-                tool_names = [n.strip() for n in raw.split(",") if n.strip()]
+                if isinstance(raw, list):
+                    tool_names = [
+                        n.strip() for n in raw if isinstance(n, str) and n.strip()
+                    ]
+                else:
+                    tool_names = [n.strip() for n in raw.split(",") if n.strip()]
             else:
                 tool_names = []
 

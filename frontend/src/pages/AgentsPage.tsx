@@ -405,11 +405,9 @@ function LaunchWizard({
                 <div>
                   <label className="flex items-center gap-1 text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
                     Schedule Type
-                    <Info
-                      size={12}
-                      style={{ color: 'var(--color-text-tertiary)', cursor: 'help' }}
-                      title="Manual: runs only when you click Run Now. Cron: standard cron schedule (e.g. 0 */6 * * * = every 6h). Interval: runs repeatedly with a fixed delay."
-                    />
+                    <span title="Manual: runs only when you click Run Now. Cron: standard cron schedule (e.g. 0 */6 * * * = every 6h). Interval: runs repeatedly with a fixed delay.">
+                      <Info size={12} style={{ color: 'var(--color-text-tertiary)', cursor: 'help' }} />
+                    </span>
                   </label>
                   <select
                     value={wizard.scheduleType}

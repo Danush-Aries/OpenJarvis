@@ -97,24 +97,11 @@ export function CostComparison() {
         })}
       </div>
 
-      {/* Savings from API if available */}
-      {savings.per_provider.length > 0 && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
-          <div className="text-xs mb-2" style={{ color: 'var(--color-text-tertiary)' }}>
-            Server-reported savings
-          </div>
-          {savings.per_provider.map((p) => (
-            <div key={p.provider} className="flex justify-between text-xs py-1">
-              <span style={{ color: 'var(--color-text-secondary)' }}>{p.label}</span>
-              <span style={{ color: 'var(--color-success)' }}>${p.total_cost.toFixed(4)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
-        *Savings estimates assume local models (e.g. Qwen, Nemotron, Kimi) produce roughly the same number of tokens per request, on average, as closed-source cloud models.
-      </p>
+      <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+        <p className="text-[10px] leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
+          *Savings estimates assume local models (e.g. Qwen, Nemotron, Kimi) produce roughly the same number of tokens per request, on average, as closed-source cloud models.
+        </p>
+      </div>
     </div>
   );
 }

@@ -8,8 +8,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Zap, Activity, Thermometer, Hash } from 'lucide-react';
+import { Zap, Activity, Thermometer, Hash, Gauge } from 'lucide-react';
 import { fetchEnergy, fetchTelemetry } from '../../lib/api';
+import { useAppStore } from '../../lib/store';
 
 interface EnergySample {
   timestamp: string;
@@ -56,7 +57,7 @@ function StatCard({
           {label}
         </span>
       </div>
-      <div className="text-xl font-semibold" style={{ color: 'var(--color-text)' }}>
+      <div className="text-xl font-semibold truncate" style={{ color: 'var(--color-text)' }}>
         {value}
         {unit && (
           <span className="text-xs font-normal ml-1" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -69,6 +70,7 @@ function StatCard({
 }
 
 export function EnergyDashboard() {
+  const savings = useAppStore((s) => s.savings);
   const [energy, setEnergy] = useState<EnergyData | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryStats | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
@@ -141,7 +143,7 @@ export function EnergyDashboard() {
         Energy Monitoring
       </h3>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <StatCard
           icon={Zap}
           label="Total Energy"
@@ -163,15 +165,18 @@ export function EnergyDashboard() {
         <StatCard
           icon={Hash}
           label="Total Requests"
-          value={String(telemetry?.total_requests ?? 0)}
+          value={String(savings?.total_calls ?? telemetry?.total_requests ?? 0)}
         />
-      </div>
-
-      {/* Thermal indicator */}
-      <div className="flex items-center gap-2 mb-4 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-        <span className="w-2 h-2 rounded-full" style={{ background: thermalStatus.color }} />
-        Thermal: {thermalStatus.label}
-        <span className="ml-auto">{telemetry?.total_tokens ?? 0} tokens processed</span>
+        <StatCard
+          icon={Gauge}
+          label="Thermal"
+          value={thermalStatus.label}
+        />
+        <StatCard
+          icon={Hash}
+          label="Tokens Processed"
+          value={formatNumber(savings?.total_tokens ?? telemetry?.total_tokens ?? 0)}
+        />
       </div>
 
       {/* Chart */}
@@ -198,4 +203,10 @@ export function EnergyDashboard() {
       )}
     </div>
   );
+}
+
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return String(n);
 }

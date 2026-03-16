@@ -1085,6 +1085,15 @@ class CompressionConfig:
     strategy: str = "session_consolidation"
 
 
+@dataclass(slots=True)
+class SkillsConfig:
+    """Configuration for agent-authored procedural skills."""
+
+    skills_dir: str = "~/.openjarvis/skills/"
+    nudge_interval: int = 15
+    auto_discover: bool = True
+
+
 @dataclass
 class JarvisConfig:
     """Top-level configuration for OpenJarvis."""
@@ -1112,6 +1121,7 @@ class JarvisConfig:
     memory_files: MemoryFilesConfig = field(default_factory=MemoryFilesConfig)
     system_prompt: SystemPromptConfig = field(default_factory=SystemPromptConfig)
     compression: CompressionConfig = field(default_factory=CompressionConfig)
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
 
     @property
     def memory(self) -> StorageConfig:

@@ -86,4 +86,9 @@ try:
 except ImportError:
     pass
 
+try:
+    import openjarvis.tools.skill_manage  # noqa: F401
+except ImportError:
+    pass
+
 __all__ = ["BaseTool", "ToolExecutor", "ToolSpec"]

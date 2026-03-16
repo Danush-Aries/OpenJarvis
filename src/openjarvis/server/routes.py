@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -89,7 +90,9 @@ async def chat_completions(request_body: ChatCompletionRequest, request: Request
                         ))
                     request_body.messages = new_msgs
         except Exception:
-            pass  # Don't break chat if memory retrieval fails
+            logging.getLogger("openjarvis.server").debug(
+                "Memory context injection failed", exc_info=True,
+            )
 
     if request_body.stream:
         bus = getattr(request.app.state, "bus", None)

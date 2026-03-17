@@ -1,10 +1,5 @@
 # Contributing Guide
 
-!!! tip "Looking for how to contribute?"
-    See our [Contributing Guide](../../CONTRIBUTING.md) for an overview of
-    contribution types, incentives, and the PR process. This page covers
-    detailed development setup and code conventions.
-
 This guide covers how to set up a development environment, run tests, and
 contribute code to OpenJarvis.
 

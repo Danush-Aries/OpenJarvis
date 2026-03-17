@@ -1,11 +1,58 @@
 # Roadmap
 
-OpenJarvis development follows a phased approach, with each version adding
-a major primitive or cross-cutting capability to the framework.
+OpenJarvis uses **GitHub Projects** boards organized by domain to plan and
+track work. Each board has quarterly columns so contributors can see what's
+coming and where help is needed.
 
 ---
 
-## Development Phases
+## How We Plan
+
+- Work is organized into domain-specific project boards (see below)
+- Each board uses quarterly columns: **Backlog → Q2 2026 → Q3 2026 → Q4 2026 → Future**
+- Issues are labeled by difficulty (`good-first-issue`, `help-wanted`) and type (`type:bug`, `type:feature`, `type:perf`, `type:docs`, `type:eval`)
+- Domain labels (`domain:agents`, `domain:engine`, `domain:tools`, etc.) connect issues to the right board
+
+Want to contribute? Check the boards below, pick an issue labeled `good-first-issue` or `help-wanted`, and comment **"take"** to claim it.
+
+---
+
+## Active Project Boards
+
+| Board | Scope | Link |
+|---|---|---|
+| **Agents & Tools** | Agent types, tool implementations, MCP | *TBD — boards will be linked once created on GitHub* |
+| **Engine & Inference** | Engine backends, streaming, performance | *TBD* |
+| **Learning & Routing** | GRPO, trace-driven policies, rewards | *TBD* |
+| **Evals & Benchmarks** | Datasets, scorers, benchmark infra | *TBD* |
+| **Frontend & Desktop** | Tauri app, dashboard, leaderboard | *TBD* |
+| **Rust Port** | PyO3 bindings, crate parity | *TBD* |
+
+---
+
+## Current Focus Areas
+
+These are the areas where active development is happening and contributions are most impactful:
+
+- **GRPO training from trace data** — moving router policies beyond heuristics using reinforcement learning from execution traces
+- **Multi-model orchestration pipelines** — coordinating multiple models within a single query (e.g., small model for classification, large model for generation)
+- **Energy-aware routing** — using power consumption data from telemetry to optimize for energy efficiency alongside latency and quality
+- **Plugin ecosystem** — community-contributed engines, tools, and agents distributed as Python packages
+- **Federated memory** — memory backends that synchronize across devices
+
+---
+
+## How to Get Involved
+
+1. Browse the [project boards](#active-project-boards) for issues that interest you
+2. Look for `good-first-issue` and `help-wanted` labels
+3. Read the [Contributing Guide](../../CONTRIBUTING.md) for the full process
+4. Comment **"take"** on an issue to claim it
+
+---
+
+<details>
+<summary><strong>Version History</strong></summary>
 
 | Version | Phase | Status | Delivers |
 |---|---|---|---|
@@ -18,69 +65,4 @@ a major primitive or cross-cutting capability to the framework.
 | **v1.1** | Phase 6 -- Traces + Learning | :material-check-circle:{ .green } Complete | Trace system (`TraceStore`, `TraceCollector`, `TraceAnalyzer`), trace-driven learning, MCP integration layer |
 | **v1.5** | Phase 10 -- Agent Restructuring | :material-check-circle:{ .green } Complete | BaseAgent helpers, ToolUsingAgent intermediate base, NativeReActAgent, NativeOpenHandsAgent, RLMAgent, OpenHandsAgent (SDK), `accepts_tools` introspection, backward-compat shims, CustomAgent removed |
 
----
-
-## Current Status
-
-OpenJarvis v1.5 (Phase 10) is complete. The framework provides:
-
-- **Four core abstractions** -- Intelligence, Engine, Agentic Logic, Memory -- each with an ABC interface and registry-based discovery
-- **Five inference engines** -- Ollama, vLLM, llama.cpp, SGLang, Cloud (OpenAI/Anthropic/Google)
-- **Five memory backends** -- SQLite/FTS5, FAISS, ColBERTv2, BM25, Hybrid (RRF fusion)
-- **Seven agent types** -- Simple, Orchestrator, NativeReAct, NativeOpenHands, RLM, Operative, MonitorOperative
-- **Seven built-in tools** -- Calculator, Think, Retrieval, LLM, FileRead, WebSearch, CodeInterpreter
-- **Python SDK** -- `Jarvis` class for programmatic use
-- **OpenAI-compatible API server** -- `POST /v1/chat/completions`, `GET /v1/models`
-- **Benchmarking framework** -- Latency and throughput measurements
-- **Telemetry and traces** -- SQLite-backed recording and aggregation
-- **Docker deployment** -- CPU and GPU images with docker-compose
-
-Phase 10 (Agent Restructuring) is complete. The agent hierarchy has been
-refactored with `BaseAgent` helpers, `ToolUsingAgent` intermediate base, and
-four new agent types (NativeReActAgent, NativeOpenHandsAgent, RLMAgent,
-OpenHandsAgent SDK).
-
----
-
-## Phase 10 Details
-
-Phase 10 refactored the agent hierarchy for composability and extensibility:
-
-### BaseAgent Helpers
-
-- **`_emit_turn_start` / `_emit_turn_end`** -- Event bus integration without boilerplate
-- **`_build_messages`** -- System prompt + context + input assembly
-- **`_generate`** -- Engine call with stored defaults
-- **`_max_turns_result`** -- Standard max-turns-exceeded result
-- **`_strip_think_tags`** -- Remove `<think>` blocks from model output
-
-### ToolUsingAgent Intermediate Base
-
-- Sets `accepts_tools = True` for CLI/SDK introspection
-- Initializes `ToolExecutor` from provided tools
-- Configurable `max_turns` loop limit
-
-### New Agent Types
-
-- **NativeReActAgent** (`native_react`, alias `react`) -- Thought-Action-Observation loop
-- **NativeOpenHandsAgent** (`native_openhands`) -- CodeAct-style code execution with URL pre-fetching
-- **RLMAgent** (`rlm`) -- Recursive LM with persistent REPL and sub-LM calls
-- **OpenHandsAgent** (`openhands`) -- Thin wrapper for real `openhands-sdk`
-
----
-
-## Future Directions
-
-Beyond Phase 10, areas of ongoing exploration include:
-
-- **GRPO training** -- Reinforcement learning from trace data to train the
-  routing policy, moving beyond heuristics and simple statistics
-- **Streaming telemetry** -- Real-time performance dashboards and alerting
-- **Multi-model orchestration** -- Coordinating multiple models within a
-  single query pipeline (e.g., small model for classification, large model
-  for generation)
-- **Federated memory** -- Memory backends that synchronize across devices
-- **Plugin ecosystem** -- Community-contributed engines, tools, and agents
-  distributed as Python packages
-- **Energy-aware routing** -- Using power consumption data from telemetry to
-  optimize for energy efficiency alongside latency and quality
+</details>

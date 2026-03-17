@@ -449,6 +449,17 @@ class TestSchedulerConfig:
 # ---------------------------------------------------------------------------
 
 
+class TestApplyTomlSectionListNormalization:
+    def test_apply_toml_section_list_to_str_field(self) -> None:
+        """TOML arrays assigned to str-typed fields should be joined with ','."""
+        from openjarvis.core.config import ToolsConfig, _apply_toml_section
+
+        target = ToolsConfig()
+        _apply_toml_section(target, {"enabled": ["code_interpreter", "web_search", "file_read"]})
+        assert isinstance(target.enabled, str)
+        assert target.enabled == "code_interpreter,web_search,file_read"
+
+
 class TestWhatsAppBaileysChannelConfig:
     def test_defaults(self) -> None:
         wc = WhatsAppBaileysChannelConfig()

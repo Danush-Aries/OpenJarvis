@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
     "click>=8",
     "datasets>=4.5.0",
+    "ddgs>=9.11.4",
     "httpx>=0.27",
     "openai>=1.30",
     "rich>=13",
@@ -39,6 +40,7 @@ inference-google = [
 inference-litellm = ["litellm>=1.40"]
 tools-search = [
     "tavily-python>=0.3",
+    "ddgs>=9.11.4",
 ]
 memory-faiss = [
     "faiss-cpu>=1.7",

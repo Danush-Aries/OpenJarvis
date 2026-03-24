@@ -40,8 +40,11 @@ class OpenHandsAgent(BaseAgent):
         api_key: Optional[str] = None,
     ) -> None:
         super().__init__(
-            engine, model, bus=bus,
-            temperature=temperature, max_tokens=max_tokens,
+            engine,
+            model,
+            bus=bus,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
         self._workspace = workspace or os.getcwd()
         self._api_key = api_key or os.environ.get("LLM_API_KEY", "")

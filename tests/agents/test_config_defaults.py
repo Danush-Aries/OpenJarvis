@@ -160,7 +160,11 @@ class TestClassLevelDefaults:
         """Caller-provided values override both config and class defaults."""
         engine = MagicMock()
         agent = _TestToolAgentWithDefaults(
-            engine, "m", temperature=0.9, max_tokens=100, max_turns=2,
+            engine,
+            "m",
+            temperature=0.9,
+            max_tokens=100,
+            max_turns=2,
         )
         assert agent._temperature == 0.9
         assert agent._max_tokens == 100

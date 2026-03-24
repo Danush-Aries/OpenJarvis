@@ -81,20 +81,24 @@ class BaseAgent(ABC):
             try:
                 cfg = load_config()
                 self._temperature = (
-                    temperature if temperature is not None
+                    temperature
+                    if temperature is not None
                     else cfg.intelligence.temperature
                 )
                 self._max_tokens = (
-                    max_tokens if max_tokens is not None
+                    max_tokens
+                    if max_tokens is not None
                     else cfg.intelligence.max_tokens
                 )
             except Exception:
                 self._temperature = (
-                    temperature if temperature is not None
+                    temperature
+                    if temperature is not None
                     else getattr(self, "_default_temperature", 0.7)
                 )
                 self._max_tokens = (
-                    max_tokens if max_tokens is not None
+                    max_tokens
+                    if max_tokens is not None
                     else getattr(self, "_default_max_tokens", 1024)
                 )
 
@@ -221,7 +225,9 @@ class BaseAgent(ABC):
         """
         # Full <think>...</think> blocks
         text = re.sub(
-            r"<think>.*?</think>\s*", "", text,
+            r"<think>.*?</think>\s*",
+            "",
+            text,
             flags=re.DOTALL | re.IGNORECASE,
         )
         # Leading content before a bare </think> (no opening tag)
@@ -264,15 +270,19 @@ class ToolUsingAgent(BaseAgent):
         confirm_callback: Optional[Any] = None,
     ) -> None:
         super().__init__(
-            engine, model, bus=bus,
-            temperature=temperature, max_tokens=max_tokens,
+            engine,
+            model,
+            bus=bus,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
         from openjarvis.tools._stubs import ToolExecutor
 
         self._tools = tools or []
         _aid = agent_id or getattr(self, "agent_id", "")
         self._executor = ToolExecutor(
-            self._tools, bus=bus,
+            self._tools,
+            bus=bus,
             capability_policy=capability_policy,
             agent_id=_aid,
             interactive=interactive,

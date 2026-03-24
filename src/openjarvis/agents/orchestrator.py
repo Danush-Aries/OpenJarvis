@@ -62,10 +62,15 @@ class OrchestratorAgent(ToolUsingAgent):
         confirm_callback=None,
     ) -> None:
         super().__init__(
-            engine, model, tools=tools, bus=bus,
-            max_turns=max_turns, temperature=temperature,
+            engine,
+            model,
+            tools=tools,
+            bus=bus,
+            max_turns=max_turns,
+            temperature=temperature,
             max_tokens=max_tokens,
-            interactive=interactive, confirm_callback=confirm_callback,
+            interactive=interactive,
+            confirm_callback=confirm_callback,
         )
         self._mode = mode
         self._system_prompt = system_prompt
@@ -100,6 +105,7 @@ class OrchestratorAgent(ToolUsingAgent):
             from openjarvis.learning.intelligence.orchestrator.prompt_registry import (
                 build_system_prompt,
             )
+
             sys_prompt = build_system_prompt(tools=self._tools)
 
         messages = self._build_messages(input, context, system_prompt=sys_prompt)
@@ -129,9 +135,7 @@ class OrchestratorAgent(ToolUsingAgent):
 
             # TOOL -> execute
             if parsed["tool"]:
-                messages.append(
-                    Message(role=Role.ASSISTANT, content=content)
-                )
+                messages.append(Message(role=Role.ASSISTANT, content=content))
 
                 tool_call = ToolCall(
                     id=f"orch_{turns}",
@@ -141,12 +145,8 @@ class OrchestratorAgent(ToolUsingAgent):
                 tool_result = self._executor.execute(tool_call)
                 all_tool_results.append(tool_result)
 
-                observation = (
-                    f"Observation: {tool_result.content}"
-                )
-                messages.append(
-                    Message(role=Role.USER, content=observation)
-                )
+                observation = f"Observation: {tool_result.content}"
+                messages.append(Message(role=Role.USER, content=observation))
                 continue
 
             # Neither -> treat content as final answer
@@ -187,9 +187,7 @@ class OrchestratorAgent(ToolUsingAgent):
             result["final_answer"] = final_match.group(1).strip()
             return result
 
-        tool_match = re.search(
-            r"TOOL:\s*(.+)", text, re.IGNORECASE
-        )
+        tool_match = re.search(r"TOOL:\s*(.+)", text, re.IGNORECASE)
         if tool_match:
             result["tool"] = tool_match.group(1).strip()
 
@@ -274,11 +272,13 @@ class OrchestratorAgent(ToolUsingAgent):
             ]
 
             # Append assistant message with tool calls
-            messages.append(Message(
-                role=Role.ASSISTANT,
-                content=content,
-                tool_calls=tool_calls,
-            ))
+            messages.append(
+                Message(
+                    role=Role.ASSISTANT,
+                    content=content,
+                    tool_calls=tool_calls,
+                )
+            )
 
             # Execute each tool (with loop guard check) and append results
             if self._parallel_tools and len(tool_calls) > 1:
@@ -286,7 +286,8 @@ class OrchestratorAgent(ToolUsingAgent):
                 def _exec_tool(tc: ToolCall) -> tuple:
                     if self._loop_guard:
                         verdict = self._loop_guard.check_call(
-                            tc.name, tc.arguments,
+                            tc.name,
+                            tc.arguments,
                         )
                         if verdict.blocked:
                             return tc, ToolResult(
@@ -299,10 +300,7 @@ class OrchestratorAgent(ToolUsingAgent):
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=len(tool_calls),
                 ) as pool:
-                    futures = {
-                        pool.submit(_exec_tool, tc): tc
-                        for tc in tool_calls
-                    }
+                    futures = {pool.submit(_exec_tool, tc): tc for tc in tool_calls}
                     results_map: dict[int, tuple] = {}
                     for future in concurrent.futures.as_completed(futures):
                         tc_orig = futures[future]
@@ -312,19 +310,22 @@ class OrchestratorAgent(ToolUsingAgent):
                 for tc in tool_calls:
                     _, tool_result = results_map[id(tc)]
                     all_tool_results.append(tool_result)
-                    messages.append(Message(
-                        role=Role.TOOL,
-                        content=tool_result.content,
-                        tool_call_id=tc.id,
-                        name=tc.name,
-                    ))
+                    messages.append(
+                        Message(
+                            role=Role.TOOL,
+                            content=tool_result.content,
+                            tool_call_id=tc.id,
+                            name=tc.name,
+                        )
+                    )
             else:
                 # Sequential execution
                 for tc in tool_calls:
                     # Loop guard check before execution
                     if self._loop_guard:
                         verdict = self._loop_guard.check_call(
-                            tc.name, tc.arguments,
+                            tc.name,
+                            tc.arguments,
                         )
                         if verdict.blocked:
                             tool_result = ToolResult(
@@ -333,24 +334,28 @@ class OrchestratorAgent(ToolUsingAgent):
                                 success=False,
                             )
                             all_tool_results.append(tool_result)
-                            messages.append(Message(
-                                role=Role.TOOL,
-                                content=tool_result.content,
-                                tool_call_id=tc.id,
-                                name=tc.name,
-                            ))
+                            messages.append(
+                                Message(
+                                    role=Role.TOOL,
+                                    content=tool_result.content,
+                                    tool_call_id=tc.id,
+                                    name=tc.name,
+                                )
+                            )
                             continue
 
                     tool_result = self._executor.execute(tc)
                     all_tool_results.append(tool_result)
 
                     # Append tool response message
-                    messages.append(Message(
-                        role=Role.TOOL,
-                        content=tool_result.content,
-                        tool_call_id=tc.id,
-                        name=tc.name,
-                    ))
+                    messages.append(
+                        Message(
+                            role=Role.TOOL,
+                            content=tool_result.content,
+                            tool_call_id=tc.id,
+                            name=tc.name,
+                        )
+                    )
 
         # Max turns exceeded
         final_content = self._strip_think_tags(content) if content else ""

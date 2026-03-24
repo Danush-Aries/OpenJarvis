@@ -7,6 +7,7 @@ found in the TOML file.
 
 from __future__ import annotations
 
+import functools
 import os
 import platform
 import shutil
@@ -1189,6 +1190,7 @@ def _migrate_toml_data(data: Dict[str, Any], cfg: "JarvisConfig") -> None:
                 )
 
 
+@functools.lru_cache(maxsize=1)
 def load_config(path: Optional[Path] = None) -> JarvisConfig:
     """Detect hardware, build defaults, overlay TOML overrides.
 

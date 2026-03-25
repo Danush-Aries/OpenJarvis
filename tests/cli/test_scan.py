@@ -3,21 +3,25 @@
 from __future__ import annotations
 
 import json
+import sys
 from subprocess import CompletedProcess
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from openjarvis.cli.scan_cmd import ScanResult, PrivacyScanner
-
+from openjarvis.cli.scan_cmd import PrivacyScanner, ScanResult
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0) -> CompletedProcess:
-    return CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
+def _make_proc(
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
+) -> CompletedProcess:
+    return CompletedProcess(
+        args=[], returncode=returncode, stdout=stdout, stderr=stderr
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +31,9 @@ def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0) -> Compl
 
 class TestScanResultDataclass:
     def test_fields_exist(self) -> None:
-        r = ScanResult(name="test", status="ok", message="all good", platform="all")
+        r = ScanResult(
+            name="test", status="ok", message="all good", platform="all"
+        )
         assert r.name == "test"
         assert r.status == "ok"
         assert r.message == "all good"
@@ -52,13 +58,15 @@ class TestScanResultDataclass:
 class TestFileVault:
     def test_filevault_enabled(self) -> None:
         scanner = PrivacyScanner()
-        with patch("subprocess.run", return_value=_make_proc(stdout="FileVault is On.")):
+        proc = _make_proc(stdout="FileVault is On.")
+        with patch("subprocess.run", return_value=proc):
             result = scanner.check_filevault()
         assert result.status == "ok"
 
     def test_filevault_disabled(self) -> None:
         scanner = PrivacyScanner()
-        with patch("subprocess.run", return_value=_make_proc(stdout="FileVault is Off.")):
+        proc = _make_proc(stdout="FileVault is Off.")
+        with patch("subprocess.run", return_value=proc):
             result = scanner.check_filevault()
         assert result.status == "fail"
 
@@ -77,18 +85,20 @@ class TestFileVault:
 class TestMDM:
     def test_not_enrolled(self) -> None:
         scanner = PrivacyScanner()
+        stdout = "Enrolled via DEP: No\nMDM enrollment: not enrolled"
         with patch(
             "subprocess.run",
-            return_value=_make_proc(stdout="Enrolled via DEP: No\nMDM enrollment: not enrolled"),
+            return_value=_make_proc(stdout=stdout),
         ):
             result = scanner.check_mdm()
         assert result.status == "ok"
 
     def test_enrolled(self) -> None:
         scanner = PrivacyScanner()
+        stdout = "MDM enrollment: Yes\nEnrolled via DEP: Yes"
         with patch(
             "subprocess.run",
-            return_value=_make_proc(stdout="MDM enrollment: Yes\nEnrolled via DEP: Yes"),
+            return_value=_make_proc(stdout=stdout),
         ):
             result = scanner.check_mdm()
         assert result.status == "warn"
@@ -101,9 +111,12 @@ class TestMDM:
 
 class TestCloudSync:
     def test_no_agents(self) -> None:
-        """pgrep returns non-zero (process not found) → no sync agents running."""
+        """pgrep returns non-zero → no sync agents running."""
         scanner = PrivacyScanner()
-        with patch("subprocess.run", return_value=_make_proc(returncode=1, stdout="")):
+        with patch(
+            "subprocess.run",
+            return_value=_make_proc(returncode=1, stdout=""),
+        ):
             result = scanner.check_cloud_sync_agents()
         assert result.status == "ok"
 
@@ -128,19 +141,18 @@ class TestCloudSync:
 
 class TestNetworkExposure:
     def test_no_exposed_ports(self) -> None:
-        """Only localhost bindings → ok."""
+        """Only localhost bindings -> ok."""
         scanner = PrivacyScanner()
-        # lsof / ss output showing only 127.0.0.1
-        lsof_output = "ollama  1234 user  IPv4  TCP 127.0.0.1:11434 (LISTEN)\n"
-        with patch("subprocess.run", return_value=_make_proc(stdout=lsof_output)):
+        lsof_out = "ollama 1234 user IPv4 TCP 127.0.0.1:11434 (LISTEN)\n"
+        with patch("subprocess.run", return_value=_make_proc(stdout=lsof_out)):
             result = scanner.check_network_exposure()
         assert result.status == "ok"
 
     def test_exposed_port(self) -> None:
-        """A port bound to 0.0.0.0 or * → warn with port in message."""
+        """A port bound to * -> warn with port in message."""
         scanner = PrivacyScanner()
-        lsof_output = "ollama  1234 user  IPv4  TCP *:11434 (LISTEN)\n"
-        with patch("subprocess.run", return_value=_make_proc(stdout=lsof_output)):
+        lsof_out = "ollama 1234 user IPv4 TCP *:11434 (LISTEN)\n"
+        with patch("subprocess.run", return_value=_make_proc(stdout=lsof_out)):
             result = scanner.check_network_exposure()
         assert result.status == "warn"
         assert "11434" in result.message
@@ -153,7 +165,7 @@ class TestNetworkExposure:
 
 class TestLUKS:
     def test_encrypted(self) -> None:
-        """lsblk JSON contains crypto_LUKS → ok."""
+        """lsblk JSON contains crypto_LUKS -> ok."""
         scanner = PrivacyScanner()
         lsblk_data = {
             "blockdevices": [
@@ -175,7 +187,7 @@ class TestLUKS:
         assert result.status == "ok"
 
     def test_not_encrypted(self) -> None:
-        """lsblk JSON has only ext4 → fail."""
+        """lsblk JSON has only ext4 -> fail."""
         scanner = PrivacyScanner()
         lsblk_data = {
             "blockdevices": [
@@ -198,14 +210,17 @@ class TestLUKS:
 
 class TestScreenRecording:
     def test_none_running(self) -> None:
-        """No screen-recording processes → ok."""
+        """No screen-recording processes -> ok."""
         scanner = PrivacyScanner()
-        with patch("subprocess.run", return_value=_make_proc(returncode=1, stdout="")):
+        with patch(
+            "subprocess.run",
+            return_value=_make_proc(returncode=1, stdout=""),
+        ):
             result = scanner.check_screen_recording()
         assert result.status == "ok"
 
     def test_teamviewer_running(self) -> None:
-        """TeamViewer found → warn."""
+        """TeamViewer found -> warn."""
         scanner = PrivacyScanner()
 
         def _pgrep_side_effect(cmd, **kwargs):
@@ -225,35 +240,33 @@ class TestScreenRecording:
 
 class TestPlatformFiltering:
     def test_run_all_filters_to_current_platform(self) -> None:
-        """run_all() should only call checks tagged 'all' or current platform."""
+        """run_all() returns only current-platform + 'all' checks."""
         scanner = PrivacyScanner()
-        called_platforms: list[str] = []
-
-        # Patch every check method to record its platform tag instead of running
-        checks = scanner._get_all_checks()
-        for check_fn in checks:
-            # Run the real method but capture which ones get included
-            pass
-
-        import sys
-
         current_plat = "darwin" if sys.platform == "darwin" else "linux"
         other_plat = "linux" if current_plat == "darwin" else "darwin"
 
-        # Make every check return immediately with a known platform
         with patch.object(scanner, "_get_all_checks") as mock_get:
-            darwin_check = MagicMock(return_value=ScanResult("d", "ok", "msg", "darwin"))
-            linux_check = MagicMock(return_value=ScanResult("l", "ok", "msg", "linux"))
-            all_check = MagicMock(return_value=ScanResult("a", "ok", "msg", "all"))
+            darwin_ck = MagicMock(
+                return_value=ScanResult("d", "ok", "msg", "darwin")
+            )
+            linux_ck = MagicMock(
+                return_value=ScanResult("l", "ok", "msg", "linux")
+            )
+            all_ck = MagicMock(
+                return_value=ScanResult("a", "ok", "msg", "all")
+            )
 
-            mock_get.return_value = [darwin_check, linux_check, all_check]
+            mock_get.return_value = [darwin_ck, linux_ck, all_ck]
             results = scanner.run_all()
 
-        # The check for the other platform should not appear in results
-        other_result_platform = "linux" if current_plat == "darwin" else "darwin"
         result_platforms = {r.platform for r in results}
-        assert other_result_platform not in result_platforms
+        assert other_plat not in result_platforms
         assert "all" in result_platforms or current_plat in result_platforms
+
+
+# ---------------------------------------------------------------------------
+# TestRemoteAccess
+# ---------------------------------------------------------------------------
 
 
 class TestRemoteAccess:
@@ -262,7 +275,9 @@ class TestRemoteAccess:
     def test_no_remote_access(self) -> None:
         scanner = PrivacyScanner()
         with patch.object(scanner, "_run") as mock_run:
-            mock_run.return_value = CompletedProcess([], 1, stdout="", stderr="")
+            mock_run.return_value = CompletedProcess(
+                [], 1, stdout="", stderr=""
+            )
             result = scanner.check_remote_access()
         assert result.status == "ok"
 
@@ -271,11 +286,20 @@ class TestRemoteAccess:
         with patch.object(scanner, "_run") as mock_run:
             def side_effect(cmd, **kw):
                 if any("xrdp" in str(c) for c in cmd):
-                    return CompletedProcess(cmd, 0, stdout="12345", stderr="")
-                return CompletedProcess(cmd, 1, stdout="", stderr="")
+                    return CompletedProcess(
+                        cmd, 0, stdout="12345", stderr=""
+                    )
+                return CompletedProcess(
+                    cmd, 1, stdout="", stderr=""
+                )
             mock_run.side_effect = side_effect
             result = scanner.check_remote_access()
         assert result.status == "warn"
+
+
+# ---------------------------------------------------------------------------
+# TestICloudSync
+# ---------------------------------------------------------------------------
 
 
 class TestICloudSync:
@@ -292,10 +316,14 @@ class TestICloudSync:
 
     def test_icloud_defaults_error_falls_through_to_ok(self) -> None:
         scanner = PrivacyScanner()
-        # When _run raises, the nested try/except catches it and falls to ok
         with patch.object(scanner, "_run", side_effect=FileNotFoundError):
             result = scanner.check_icloud_sync()
         assert result.status == "ok"
+
+
+# ---------------------------------------------------------------------------
+# TestRunQuick
+# ---------------------------------------------------------------------------
 
 
 class TestRunQuick:
@@ -303,21 +331,20 @@ class TestRunQuick:
 
     def test_run_quick_returns_subset(self) -> None:
         scanner = PrivacyScanner()
-        with patch.object(scanner, "check_filevault") as fv, \
-             patch.object(scanner, "check_luks") as luks, \
-             patch.object(scanner, "check_icloud_sync") as ic, \
-             patch.object(scanner, "check_cloud_sync_agents") as cs:
-            import sys
-            plat = sys.platform
+        plat = sys.platform
+        with (
+            patch.object(scanner, "check_filevault") as fv,
+            patch.object(scanner, "check_luks") as luks,
+            patch.object(scanner, "check_icloud_sync") as ic,
+            patch.object(scanner, "check_cloud_sync_agents") as cs,
+        ):
             fv.return_value = ScanResult("FV", "ok", "ok", "darwin")
             luks.return_value = ScanResult("LUKS", "ok", "ok", "linux")
             ic.return_value = ScanResult("iCloud", "ok", "ok", "darwin")
             cs.return_value = ScanResult("Cloud", "ok", "ok", plat)
             results = scanner.run_quick()
-        # Should only contain current platform results
         for r in results:
             assert r.platform in (plat, "all")
-        # Should not contain network or screen recording
         names = {r.name for r in results}
         assert "Network Exposure" not in names
         assert "Screen Recording" not in names

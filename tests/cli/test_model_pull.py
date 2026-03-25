@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest import mock
 
-import pytest
 from click.testing import CliRunner
 from rich.console import Console
 
@@ -34,6 +33,7 @@ class TestOllamaPull:
 
     def test_ollama_pull_connect_error(self) -> None:
         import io
+
         import httpx
 
         console = Console(file=io.StringIO())

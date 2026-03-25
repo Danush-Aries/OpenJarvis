@@ -368,3 +368,56 @@ class TestGemmaCppDiscovery:
 
         EngineRegistry.register_value("gemma_cpp", GemmaCppEngine)
         assert EngineRegistry.contains("gemma_cpp")
+
+
+@pytest.mark.live
+class TestGemmaCppLive:
+    """Integration tests — require pygemma and downloaded Gemma weights.
+
+    Set GEMMA_CPP_MODEL_PATH, GEMMA_CPP_TOKENIZER_PATH, and
+    GEMMA_CPP_MODEL_TYPE env vars before running.
+    """
+
+    def _make_engine(self):
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+
+        return GemmaCppEngine()
+
+    def test_real_inference_produces_output(self) -> None:
+        engine = self._make_engine()
+        result = engine.generate(
+            [Message(role=Role.USER, content="What is 2+2?")],
+            model=os.environ.get("GEMMA_CPP_MODEL_TYPE", "2b-it"),
+        )
+        assert result["content"]
+        assert len(result["content"]) > 0
+
+    def test_prepare_and_close_lifecycle(self) -> None:
+        engine = self._make_engine()
+        model_type = os.environ.get("GEMMA_CPP_MODEL_TYPE", "2b-it")
+        engine.prepare(model_type)
+        assert engine._gemma is not None
+        engine.close()
+        assert engine._gemma is None
+
+    @pytest.mark.asyncio
+    async def test_stream_yields_content(self) -> None:
+        engine = self._make_engine()
+        chunks = []
+        async for chunk in engine.stream(
+            [Message(role=Role.USER, content="Say hello")],
+            model=os.environ.get("GEMMA_CPP_MODEL_TYPE", "2b-it"),
+        ):
+            chunks.append(chunk)
+        assert len(chunks) > 0
+        assert all(len(c) > 0 for c in chunks)
+
+    def test_token_counts_are_positive(self) -> None:
+        engine = self._make_engine()
+        result = engine.generate(
+            [Message(role=Role.USER, content="Tell me a joke")],
+            model=os.environ.get("GEMMA_CPP_MODEL_TYPE", "2b-it"),
+        )
+        assert result["usage"]["prompt_tokens"] > 0
+        assert result["usage"]["completion_tokens"] > 0
+        assert result["usage"]["total_tokens"] > 0

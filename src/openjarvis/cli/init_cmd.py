@@ -11,6 +11,7 @@ from rich.markup import escape
 from rich.panel import Panel
 
 from openjarvis.cli.model import find_model_spec, hf_download, ollama_pull
+from openjarvis.cli.scan_cmd import PrivacyScanner
 from openjarvis.core.config import (
     DEFAULT_CONFIG_DIR,
     DEFAULT_CONFIG_PATH,
@@ -154,6 +155,23 @@ def _next_steps_text(engine: str, model: str = "") -> str:
         ),
     }
     return steps.get(engine, steps["ollama"])
+
+
+def _quick_privacy_check(console: Console) -> None:
+    """Run critical privacy checks and print compact summary."""
+    scanner = PrivacyScanner()
+    results = scanner.run_quick()
+    if results:
+        console.print("  [bold]Privacy check:[/bold]")
+        for r in results:
+            if r.status == "ok":
+                console.print(f"  [green]\u2713[/green] {r.message}")
+            elif r.status == "warn":
+                console.print(f"  [yellow]![/yellow] {r.message}")
+            elif r.status == "fail":
+                console.print(f"  [red]\u2717[/red] {r.message}")
+    console.print()
+    console.print("  Run [cyan]jarvis scan[/cyan] for a full environment audit.")
 
 
 def _do_download(engine: str, model: str, spec, console: Console) -> None:
@@ -358,6 +376,7 @@ def init(
             if click.confirm(prompt, default=True):
                 _do_download(selected_engine, model, spec, console)
 
+    _quick_privacy_check(console)
     console.print()
     console.print(
         Panel(

@@ -19,6 +19,7 @@ class TestInitShowsNextSteps:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp", "--no-download"])
         assert result.exit_code == 0
@@ -33,6 +34,7 @@ class TestInitShowsNextSteps:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp", "--no-download"])
         assert result.exit_code == 0
@@ -92,6 +94,7 @@ class TestMinimalConfig:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "ollama", "--no-download"])
         assert result.exit_code == 0
@@ -109,6 +112,7 @@ class TestMinimalConfig:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--full", "--engine", "ollama", "--no-download"])
         assert result.exit_code == 0
@@ -126,6 +130,7 @@ class TestInitDownloadPrompt:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "ollama"], input="n\n")
         assert result.exit_code == 0
@@ -137,6 +142,7 @@ class TestInitDownloadPrompt:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "ollama", "--no-download"])
         assert result.exit_code == 0
@@ -151,6 +157,7 @@ class TestInitEmptyModelFallback:
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
             mock.patch("openjarvis.cli.init_cmd.recommend_model", return_value=""),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp"])
         assert result.exit_code == 0
@@ -179,6 +186,7 @@ class TestInitDownloadDispatch:
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
             mock.patch("openjarvis.cli.init_cmd.ollama_pull", return_value=True) as mock_pull,
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "ollama"], input="y\n")
         assert result.exit_code == 0
@@ -190,7 +198,29 @@ class TestInitDownloadDispatch:
         with (
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner"),
         ):
             result = CliRunner().invoke(cli, ["init", "--engine", "vllm"], input="y\n")
         assert result.exit_code == 0
         assert "automatically" in result.output
+
+
+class TestInitPrivacyHook:
+    def test_init_shows_privacy_summary(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".openjarvis"
+        config_path = config_dir / "config.toml"
+        with (
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.PrivacyScanner") as MockScanner,
+        ):
+            from openjarvis.cli.scan_cmd import ScanResult
+            instance = MockScanner.return_value
+            instance.run_quick.return_value = [
+                ScanResult("FileVault", "ok", "FileVault enabled", "darwin"),
+            ]
+            result = CliRunner().invoke(
+                cli, ["init", "--engine", "llamacpp", "--no-download"]
+            )
+        assert result.exit_code == 0
+        assert "jarvis scan" in result.output

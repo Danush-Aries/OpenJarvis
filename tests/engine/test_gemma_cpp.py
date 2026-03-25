@@ -90,3 +90,128 @@ class TestMessagesToPrompt:
             "Rule 1\n\nRule 2\n\nGo<end_of_turn>\n"
             "<start_of_turn>model\n"
         )
+
+
+from unittest.mock import MagicMock, patch
+
+
+class TestGemmaCppLifecycle:
+    def _make_engine(self, **kwargs):
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        defaults = {
+            "model_path": "/fake/model.sbs",
+            "tokenizer_path": "/fake/tokenizer.spm",
+            "model_type": "2b-it",
+        }
+        defaults.update(kwargs)
+        return GemmaCppEngine(**defaults)
+
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    def test_prepare_loads_model(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_import.return_value = mock_gemma_cls
+        engine = self._make_engine()
+        engine.prepare("2b-it")
+        mock_gemma_cls.assert_called_once()
+        mock_gemma_cls.return_value.load_model.assert_called_once_with(
+            "/fake/tokenizer.spm", "/fake/model.sbs", "2b-it"
+        )
+
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    def test_prepare_idempotent(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_import.return_value = mock_gemma_cls
+        engine = self._make_engine()
+        engine.prepare("2b-it")
+        engine.prepare("2b-it")
+        # Only loaded once
+        assert mock_gemma_cls.call_count == 1
+
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    def test_close_unloads_model(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_import.return_value = mock_gemma_cls
+        engine = self._make_engine()
+        engine.prepare("2b-it")
+        assert engine._gemma is not None
+        engine.close()
+        assert engine._gemma is None
+
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    def test_generate_returns_dict(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_gemma_instance = MagicMock()
+        mock_gemma_instance.completion.return_value = "The answer is 4."
+        mock_gemma_cls.return_value = mock_gemma_instance
+        mock_import.return_value = mock_gemma_cls
+
+        engine = self._make_engine()
+        result = engine.generate(
+            [Message(role=Role.USER, content="What is 2+2?")],
+            model="2b-it",
+        )
+        assert result["content"] == "The answer is 4."
+        assert "usage" in result
+        assert result["usage"]["prompt_tokens"] > 0
+        assert result["usage"]["completion_tokens"] > 0
+        assert result["usage"]["total_tokens"] > 0
+        assert result["model"] == "2b-it"
+        assert result["finish_reason"] == "stop"
+
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    def test_generate_warns_on_model_mismatch(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_gemma_instance = MagicMock()
+        mock_gemma_instance.completion.return_value = "ok"
+        mock_gemma_cls.return_value = mock_gemma_instance
+        mock_import.return_value = mock_gemma_cls
+
+        engine = self._make_engine(model_type="2b-it")
+        from openjarvis.engine import gemma_cpp as gc_mod
+        with patch.object(gc_mod.logger, "warning") as mock_warn:
+            engine.generate(
+                [Message(role=Role.USER, content="Hi")],
+                model="9b-it",
+            )
+            mock_warn.assert_called_once()
+
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    def test_generate_wraps_runtime_error(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_gemma_instance = MagicMock()
+        mock_gemma_instance.completion.side_effect = Exception("segfault")
+        mock_gemma_cls.return_value = mock_gemma_instance
+        mock_import.return_value = mock_gemma_cls
+
+        engine = self._make_engine()
+        with pytest.raises(RuntimeError, match="gemma.cpp inference failed"):
+            engine.generate(
+                [Message(role=Role.USER, content="Hi")],
+                model="2b-it",
+            )
+
+
+class TestGemmaCppStream:
+    @patch("openjarvis.engine.gemma_cpp._import_pygemma")
+    @pytest.mark.asyncio
+    async def test_stream_yields_content(self, mock_import) -> None:
+        mock_gemma_cls = MagicMock()
+        mock_gemma_instance = MagicMock()
+        mock_gemma_instance.completion.return_value = "streamed output"
+        mock_gemma_cls.return_value = mock_gemma_instance
+        mock_import.return_value = mock_gemma_cls
+
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine(
+            model_path="/fake/model.sbs",
+            tokenizer_path="/fake/tokenizer.spm",
+            model_type="2b-it",
+        )
+        chunks = []
+        async for chunk in engine.stream(
+            [Message(role=Role.USER, content="Hi")],
+            model="2b-it",
+        ):
+            chunks.append(chunk)
+        assert len(chunks) == 1
+        assert chunks[0] == "streamed output"

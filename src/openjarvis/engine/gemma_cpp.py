@@ -14,6 +14,12 @@ from openjarvis.engine._base import InferenceEngine, estimate_prompt_tokens
 logger = logging.getLogger(__name__)
 
 
+def _import_pygemma():
+    """Import and return the pygemma.Gemma class. Raises ImportError if unavailable."""
+    from pygemma import Gemma
+    return Gemma
+
+
 @EngineRegistry.register("gemma_cpp")
 class GemmaCppEngine(InferenceEngine):
     """gemma.cpp backend via pygemma pybind11 bindings (in-process, CPU)."""
@@ -64,6 +70,35 @@ class GemmaCppEngine(InferenceEngine):
         parts.append("<start_of_turn>model\n")
         return "".join(parts)
 
+    def _ensure_loaded(self) -> None:
+        """Lazy model loading — called before inference."""
+        if self._gemma is None:
+            if not self._model_path:
+                raise FileNotFoundError(
+                    "gemma.cpp model_path not configured. Download weights "
+                    "from Kaggle and set GEMMA_CPP_MODEL_PATH or configure "
+                    "[engine.gemma_cpp] in ~/.openjarvis/config.toml"
+                )
+            if not self._tokenizer_path:
+                raise FileNotFoundError(
+                    "gemma.cpp tokenizer_path not configured. Set "
+                    "GEMMA_CPP_TOKENIZER_PATH or configure "
+                    "[engine.gemma_cpp] in ~/.openjarvis/config.toml"
+                )
+            Gemma = _import_pygemma()
+            self._gemma = Gemma()
+            self._gemma.load_model(
+                self._tokenizer_path, self._model_path, self._model_type
+            )
+
+    def prepare(self, model: str) -> None:
+        """Load model into memory."""
+        self._ensure_loaded()
+
+    def close(self) -> None:
+        """Unload model and free memory."""
+        self._gemma = None
+
     def generate(
         self,
         messages: Sequence[Message],
@@ -73,7 +108,31 @@ class GemmaCppEngine(InferenceEngine):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        raise NotImplementedError  # implemented in Task 4
+        self._ensure_loaded()
+        if model != self._model_type:
+            logger.warning(
+                "gemma_cpp: requested model %r but loaded model is %r; "
+                "proceeding with loaded model",
+                model, self._model_type,
+            )
+        prompt = self._messages_to_prompt(messages)
+        try:
+            raw = self._gemma.completion(prompt)
+        except Exception as exc:
+            raise RuntimeError(f"gemma.cpp inference failed: {exc}") from exc
+
+        prompt_tokens = estimate_prompt_tokens(messages)
+        completion_tokens = max(1, len(raw) // 4)
+        return {
+            "content": raw,
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
+            "model": self._model_type,
+            "finish_reason": "stop",
+        }
 
     async def stream(
         self,
@@ -84,20 +143,19 @@ class GemmaCppEngine(InferenceEngine):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> AsyncIterator[str]:
-        raise NotImplementedError  # implemented in Task 4
-        yield ""  # pragma: no cover
+        self._ensure_loaded()
+        prompt = self._messages_to_prompt(messages)
+        try:
+            raw = self._gemma.completion(prompt)
+        except Exception as exc:
+            raise RuntimeError(f"gemma.cpp inference failed: {exc}") from exc
+        yield raw
 
     def list_models(self) -> List[str]:
         raise NotImplementedError  # implemented in Task 5
 
     def health(self) -> bool:
         raise NotImplementedError  # implemented in Task 5
-
-    def close(self) -> None:
-        pass  # implemented in Task 4
-
-    def prepare(self, model: str) -> None:
-        pass  # implemented in Task 4
 
 
 __all__ = ["GemmaCppEngine"]

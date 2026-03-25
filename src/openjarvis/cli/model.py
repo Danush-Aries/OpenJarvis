@@ -219,7 +219,9 @@ def hf_download(repo: str, filename: str | None, console: Console) -> bool:
 
 @model.command()
 @click.argument("model_name")
-@click.option("--engine", default=None, help="Engine to download for (ollama, llamacpp, mlx).")
+@click.option(
+    "--engine", default=None, help="Engine to download for."
+)
 def pull(model_name: str, engine: str | None) -> None:
     """Download a model."""
     console = Console()

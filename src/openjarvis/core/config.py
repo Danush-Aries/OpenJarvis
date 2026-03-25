@@ -337,6 +337,16 @@ class AppleFmEngineConfig:
     host: str = "http://localhost:8079"
 
 
+@dataclass(slots=True)
+class GemmaCppEngineConfig:
+    """Per-engine config for gemma.cpp."""
+
+    model_path: str = ""
+    tokenizer_path: str = ""
+    model_type: str = ""
+    num_threads: int = 0
+
+
 @dataclass
 class EngineConfig:
     """Inference engine settings with nested per-engine configs."""
@@ -352,6 +362,7 @@ class EngineConfig:
     nexa: NexaEngineConfig = field(default_factory=NexaEngineConfig)
     uzu: UzuEngineConfig = field(default_factory=UzuEngineConfig)
     apple_fm: AppleFmEngineConfig = field(default_factory=AppleFmEngineConfig)
+    gemma_cpp: GemmaCppEngineConfig = field(default_factory=GemmaCppEngineConfig)
 
     # Backward-compat properties for old flat attribute names
     @property

@@ -10,10 +10,12 @@ from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 
+from openjarvis.cli.model import find_model_spec, hf_download, ollama_pull
 from openjarvis.core.config import (
     DEFAULT_CONFIG_DIR,
     DEFAULT_CONFIG_PATH,
     detect_hardware,
+    estimated_download_gb,
     generate_default_toml,
     generate_minimal_toml,
     recommend_engine,
@@ -132,8 +134,56 @@ def _next_steps_text(engine: str, model: str = "") -> str:
             "\n"
             "  Run `jarvis doctor` to verify your setup."
         ),
+        "exo": (
+            "Next steps:\n\n"
+            "  1. Install and start Exo:\n"
+            "     pip install exo\n"
+            "     exo\n\n"
+            "  2. Try it out:\n"
+            "     jarvis ask \"Hello\"\n\n"
+            "  Run `jarvis doctor` to verify your setup."
+        ),
+        "nexa": (
+            "Next steps:\n\n"
+            "  1. Install and start Nexa:\n"
+            "     pip install nexaai\n"
+            "     nexa server\n\n"
+            "  2. Try it out:\n"
+            "     jarvis ask \"Hello\"\n\n"
+            "  Run `jarvis doctor` to verify your setup."
+        ),
     }
     return steps.get(engine, steps["ollama"])
+
+
+def _do_download(engine: str, model: str, spec, console: Console) -> None:
+    """Dispatch model download based on engine type."""
+    import os
+    if engine == "ollama":
+        host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+        ollama_pull(host, model, console)
+    elif engine == "llamacpp":
+        repo = spec.metadata.get("hf_repo", "")
+        gguf = spec.metadata.get("gguf_file", "")
+        if repo and gguf:
+            console.print(f"  Downloading [cyan]{gguf}[/cyan] from {repo}...")
+            hf_download(repo, gguf, console)
+        else:
+            console.print(f"  [yellow]No GGUF download info for {model}[/yellow]")
+    elif engine == "mlx":
+        mlx_repo = spec.metadata.get("mlx_repo", "")
+        if mlx_repo:
+            console.print(f"  Downloading [cyan]{mlx_repo}[/cyan]...")
+            hf_download(mlx_repo, None, console)
+        else:
+            console.print(f"  [yellow]No MLX repo info for {model}[/yellow]")
+    elif engine in ("vllm", "sglang"):
+        console.print(
+            f"  [cyan]{model}[/cyan] will download automatically when "
+            f"{engine} starts serving it."
+        )
+    else:
+        console.print(f"  Download {model} through the {engine} interface.")
 
 
 @click.command()
@@ -157,11 +207,15 @@ def _next_steps_text(engine: str, model: str = "") -> str:
     default=None,
     help="Inference engine to use (skips interactive selection).",
 )
+@click.option(
+    "--no-download", is_flag=True, default=False, help="Skip the model download prompt."
+)
 def init(
     force: bool,
     config: Optional[Path],
     full_config: bool = False,
     engine: Optional[str] = None,
+    no_download: bool = False,
 ) -> None:
     """Detect hardware and generate ~/.openjarvis/config.toml."""
     console = Console()
@@ -286,8 +340,24 @@ def init(
 
     selected_engine = engine or recommend_engine(hw)
     model = recommend_model(hw, selected_engine)
-    if model:
-        console.print(f"\n  [bold]Recommended model:[/bold] {model}")
+
+    if not model:
+        console.print(
+            "\n  [yellow]! Not enough memory to run any local model.[/yellow]\n"
+            "  Consider a cloud engine or a machine with more RAM."
+        )
+    else:
+        spec = find_model_spec(model)
+        size_gb = estimated_download_gb(spec.parameter_count_b) if spec else 0
+        console.print(
+            f"\n  [bold]Recommended model:[/bold] {model} (~{size_gb:.1f} GB estimated)"
+        )
+
+        if not no_download and spec:
+            prompt = f"  Download {model} (~{size_gb:.1f} GB estimated) now?"
+            if click.confirm(prompt, default=True):
+                _do_download(selected_engine, model, spec, console)
+
     console.print()
     console.print(
         Panel(

@@ -20,7 +20,7 @@ class TestInitShowsNextSteps:
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
         ):
-            result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp"])
+            result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp", "--no-download"])
         assert result.exit_code == 0
         assert "Getting Started" in result.output
         assert "jarvis ask" in result.output
@@ -34,7 +34,7 @@ class TestInitShowsNextSteps:
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
         ):
-            result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp"])
+            result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp", "--no-download"])
         assert result.exit_code == 0
         assert "[engine]" in result.output
         assert "[intelligence]" in result.output
@@ -93,7 +93,7 @@ class TestMinimalConfig:
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
         ):
-            result = CliRunner().invoke(cli, ["init", "--engine", "ollama"])
+            result = CliRunner().invoke(cli, ["init", "--engine", "ollama", "--no-download"])
         assert result.exit_code == 0
         content = config_path.read_text()
         # Minimal config should be short
@@ -110,10 +110,87 @@ class TestMinimalConfig:
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
             mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
         ):
-            result = CliRunner().invoke(cli, ["init", "--full", "--engine", "ollama"])
+            result = CliRunner().invoke(cli, ["init", "--full", "--engine", "ollama", "--no-download"])
         assert result.exit_code == 0
         content = config_path.read_text()
         # Full config should have many sections
         assert "[engine.ollama]" in content
         assert "[server]" in content
         assert "[security]" in content
+
+
+class TestInitDownloadPrompt:
+    def test_init_shows_download_prompt(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".openjarvis"
+        config_path = config_dir / "config.toml"
+        with (
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+        ):
+            result = CliRunner().invoke(cli, ["init", "--engine", "ollama"], input="n\n")
+        assert result.exit_code == 0
+        assert "Download" in result.output and "now?" in result.output
+
+    def test_init_no_download_flag_skips_prompt(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".openjarvis"
+        config_path = config_dir / "config.toml"
+        with (
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+        ):
+            result = CliRunner().invoke(cli, ["init", "--engine", "ollama", "--no-download"])
+        assert result.exit_code == 0
+        assert "Download" not in result.output or "now?" not in result.output
+
+
+class TestInitEmptyModelFallback:
+    def test_init_no_model_shows_warning(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".openjarvis"
+        config_path = config_dir / "config.toml"
+        with (
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.recommend_model", return_value=""),
+        ):
+            result = CliRunner().invoke(cli, ["init", "--engine", "llamacpp"])
+        assert result.exit_code == 0
+        assert "Not enough memory" in result.output or "not enough memory" in result.output
+
+
+class TestNextStepsExoNexa:
+    def test_next_steps_exo(self) -> None:
+        text = _next_steps_text("exo")
+        assert "exo" in text.lower()
+        assert "jarvis ask" in text
+        assert "ollama" not in text.lower()
+
+    def test_next_steps_nexa(self) -> None:
+        text = _next_steps_text("nexa")
+        assert "nexa" in text.lower()
+        assert "jarvis ask" in text
+        assert "ollama" not in text.lower()
+
+
+class TestInitDownloadDispatch:
+    def test_init_ollama_download_calls_ollama_pull(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".openjarvis"
+        config_path = config_dir / "config.toml"
+        with (
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+            mock.patch("openjarvis.cli.init_cmd.ollama_pull", return_value=True) as mock_pull,
+        ):
+            result = CliRunner().invoke(cli, ["init", "--engine", "ollama"], input="y\n")
+        assert result.exit_code == 0
+        mock_pull.assert_called_once()
+
+    def test_init_vllm_shows_auto_download_message(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / ".openjarvis"
+        config_path = config_dir / "config.toml"
+        with (
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_DIR", config_dir),
+            mock.patch("openjarvis.cli.init_cmd.DEFAULT_CONFIG_PATH", config_path),
+        ):
+            result = CliRunner().invoke(cli, ["init", "--engine", "vllm"], input="y\n")
+        assert result.exit_code == 0
+        assert "automatically" in result.output

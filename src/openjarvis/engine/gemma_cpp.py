@@ -151,11 +151,28 @@ class GemmaCppEngine(InferenceEngine):
             raise RuntimeError(f"gemma.cpp inference failed: {exc}") from exc
         yield raw
 
+    def _paths_valid(self) -> bool:
+        """Check that model and tokenizer paths are configured and exist."""
+        return bool(
+            self._model_path
+            and self._tokenizer_path
+            and os.path.isfile(self._model_path)
+            and os.path.isfile(self._tokenizer_path)
+        )
+
     def list_models(self) -> List[str]:
-        raise NotImplementedError  # implemented in Task 5
+        if self._model_type and self._paths_valid():
+            return [self._model_type]
+        return []
 
     def health(self) -> bool:
-        raise NotImplementedError  # implemented in Task 5
+        if not self._paths_valid():
+            return False
+        try:
+            _import_pygemma()
+            return True
+        except ImportError:
+            return False
 
 
 __all__ = ["GemmaCppEngine"]

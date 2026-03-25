@@ -215,3 +215,79 @@ class TestGemmaCppStream:
             chunks.append(chunk)
         assert len(chunks) == 1
         assert chunks[0] == "streamed output"
+
+
+class TestGemmaCppHealth:
+    def test_health_true_when_configured_and_files_exist(self, tmp_path) -> None:
+        model_file = tmp_path / "model.sbs"
+        tokenizer_file = tmp_path / "tokenizer.spm"
+        model_file.write_text("fake")
+        tokenizer_file.write_text("fake")
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine(
+            model_path=str(model_file),
+            tokenizer_path=str(tokenizer_file),
+            model_type="2b-it",
+        )
+        with patch("openjarvis.engine.gemma_cpp._import_pygemma"):
+            assert engine.health() is True
+
+    def test_health_false_when_files_missing(self) -> None:
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine(
+            model_path="/nonexistent/model.sbs",
+            tokenizer_path="/nonexistent/tokenizer.spm",
+            model_type="2b-it",
+        )
+        assert engine.health() is False
+
+    def test_health_false_when_unconfigured(self) -> None:
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine()
+        assert engine.health() is False
+
+    def test_health_false_when_pygemma_missing(self, tmp_path) -> None:
+        model_file = tmp_path / "model.sbs"
+        tokenizer_file = tmp_path / "tokenizer.spm"
+        model_file.write_text("fake")
+        tokenizer_file.write_text("fake")
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine(
+            model_path=str(model_file),
+            tokenizer_path=str(tokenizer_file),
+            model_type="2b-it",
+        )
+        with patch(
+            "openjarvis.engine.gemma_cpp._import_pygemma",
+            side_effect=ImportError("no pygemma"),
+        ):
+            assert engine.health() is False
+
+
+class TestGemmaCppListModels:
+    def test_list_models_configured(self, tmp_path) -> None:
+        model_file = tmp_path / "model.sbs"
+        tokenizer_file = tmp_path / "tokenizer.spm"
+        model_file.write_text("fake")
+        tokenizer_file.write_text("fake")
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine(
+            model_path=str(model_file),
+            tokenizer_path=str(tokenizer_file),
+            model_type="2b-it",
+        )
+        assert engine.list_models() == ["2b-it"]
+
+    def test_list_models_unconfigured(self) -> None:
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine()
+        assert engine.list_models() == []
+
+    def test_list_models_files_missing(self) -> None:
+        from openjarvis.engine.gemma_cpp import GemmaCppEngine
+        engine = GemmaCppEngine(
+            model_path="/nonexistent/model.sbs",
+            tokenizer_path="/nonexistent/tokenizer.spm",
+            model_type="2b-it",
+        )
+        assert engine.list_models() == []

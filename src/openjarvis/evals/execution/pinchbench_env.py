@@ -50,13 +50,16 @@ class PinchBenchTaskEnv:
         for file_spec in workspace_files:
             if "content" in file_spec:
                 # Inline content
-                dest = self._workspace / file_spec.get("path", file_spec.get("dest", "file.txt"))
+                dest_key = file_spec.get("path", file_spec.get("dest", "file.txt"))
+                dest = self._workspace / dest_key
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(file_spec["content"])
             elif "source" in file_spec:
                 # Asset file from repo
                 source = repo_dir / "assets" / file_spec["source"]
-                dest_key = file_spec.get("dest", file_spec.get("path", file_spec["source"]))
+                dest_key = file_spec.get(
+                    "dest", file_spec.get("path", file_spec["source"])
+                )
                 dest = self._workspace / dest_key
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 if source.exists():
@@ -65,7 +68,11 @@ class PinchBenchTaskEnv:
                     LOGGER.warning("Asset not found: %s", source)
 
         self._record.metadata["workspace_path"] = str(self._workspace)
-        LOGGER.info("PinchBench workspace: %s (task %s)", self._workspace, self._record.record_id)
+        LOGGER.info(
+            "PinchBench workspace: %s (task %s)",
+            self._workspace,
+            self._record.record_id,
+        )
         return self
 
     def run_tests(self) -> None:

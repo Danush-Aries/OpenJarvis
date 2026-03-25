@@ -1,5 +1,6 @@
 """Tests for TurnTrace tool_calls field and PinchBench transcript translation."""
 
+from openjarvis.evals.core.event_recorder import AgentEvent, EventType
 from openjarvis.evals.core.trace import TurnTrace
 
 
@@ -32,9 +33,6 @@ def test_turn_trace_tool_calls_from_dict_missing():
     assert turn.tool_calls == []
 
 
-from openjarvis.evals.core.event_recorder import AgentEvent, EventType
-
-
 def _make_event(etype, **metadata):
     """Helper to create a mock AgentEvent."""
     return AgentEvent(event_type=etype, timestamp=0.0, metadata=metadata)
@@ -45,7 +43,9 @@ def test_events_to_transcript_tool_call_pair():
     from openjarvis.evals.scorers.pinchbench import events_to_transcript
 
     events = [
-        _make_event(EventType.TOOL_CALL_START, tool="file_read", arguments={"path": "a.txt"}),
+        _make_event(
+            EventType.TOOL_CALL_START, tool="file_read", arguments={"path": "a.txt"}
+        ),
         _make_event(EventType.TOOL_CALL_END, tool="file_read", result="file contents"),
     ]
     transcript = events_to_transcript(events)
@@ -64,7 +64,11 @@ def test_events_to_transcript_tool_name_mapping():
     from openjarvis.evals.scorers.pinchbench import events_to_transcript
 
     events = [
-        _make_event(EventType.TOOL_CALL_START, tool="image_generate", arguments={"prompt": "cat"}),
+        _make_event(
+            EventType.TOOL_CALL_START,
+            tool="image_generate",
+            arguments={"prompt": "cat"},
+        ),
         _make_event(EventType.TOOL_CALL_END, tool="image_generate", result="ok"),
     ]
     transcript = events_to_transcript(events)

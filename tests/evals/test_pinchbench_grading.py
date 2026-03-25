@@ -61,7 +61,8 @@ def grade(transcript, workspace_path):
             msg = entry.get("message", {})
             if msg.get("role") == "assistant":
                 for item in msg.get("content", []):
-                    if item.get("type") == "toolCall" and item.get("name") == "read_file":
+                    name = item.get("name")
+                    if item.get("type") == "toolCall" and name == "read_file":
                         used_read = True
     return {"used_read_file": 1.0 if used_read else 0.0}
 '''
@@ -69,7 +70,13 @@ def grade(transcript, workspace_path):
             "type": "message",
             "message": {
                 "role": "assistant",
-                "content": [{"type": "toolCall", "name": "read_file", "arguments": {"path": "a.txt"}}],
+                "content": [
+                    {
+                        "type": "toolCall",
+                        "name": "read_file",
+                        "arguments": {"path": "a.txt"},
+                    }
+                ],
             },
         }]
         record = _make_record(automated_checks=code)
@@ -84,7 +91,9 @@ def grade(transcript, workspace_path):
 
 class TestParseJudgeResponse:
     def test_json_code_block(self):
-        raw = '```json\n{"scores": {"quality": 0.8}, "total": 0.8, "notes": "good"}\n```'
+        raw = (
+            '```json\n{"scores": {"quality": 0.8}, "total": 0.8, "notes": "good"}\n```'
+        )
         parsed = _parse_judge_response(raw)
         assert parsed["total"] == 0.8
         assert parsed["scores"]["quality"] == 0.8
@@ -111,12 +120,21 @@ class TestSummarizeTranscript:
                 "type": "message",
                 "message": {
                     "role": "assistant",
-                    "content": [{"type": "toolCall", "name": "read_file", "arguments": {"path": "a.txt"}}],
+                    "content": [
+                        {
+                            "type": "toolCall",
+                            "name": "read_file",
+                            "arguments": {"path": "a.txt"},
+                        }
+                    ],
                 },
             },
             {
                 "type": "message",
-                "message": {"role": "toolResult", "content": [{"text": "file contents"}]},
+                "message": {
+                    "role": "toolResult",
+                    "content": [{"text": "file contents"}],
+                },
             },
         ]
         summary = _summarize_transcript(transcript)
@@ -128,10 +146,14 @@ class TestGradeRouter:
     def test_routes_automated(self, tmp_path):
         code = 'def grade(t, w): return {"ok": 1.0}'
         record = _make_record(grading_type="automated", automated_checks=code)
-        result = grade_pinchbench_task(record=record, transcript=[], workspace_path=str(tmp_path))
+        result = grade_pinchbench_task(
+            record=record, transcript=[], workspace_path=str(tmp_path)
+        )
         assert result["score"] == 1.0
 
     def test_unknown_type(self, tmp_path):
         record = _make_record(grading_type="unknown")
-        result = grade_pinchbench_task(record=record, transcript=[], workspace_path=str(tmp_path))
+        result = grade_pinchbench_task(
+            record=record, transcript=[], workspace_path=str(tmp_path)
+        )
         assert result["score"] == 0.0

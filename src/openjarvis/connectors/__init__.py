@@ -6,5 +6,6 @@ from openjarvis.connectors._stubs import (
     Document,
     SyncStatus,
 )
+from openjarvis.connectors.store import KnowledgeStore
 
-__all__ = ["Attachment", "BaseConnector", "Document", "SyncStatus"]
+__all__ = ["Attachment", "BaseConnector", "Document", "KnowledgeStore", "SyncStatus"]

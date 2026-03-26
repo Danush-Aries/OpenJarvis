@@ -10,7 +10,7 @@ const OLLAMA_PORT: u16 = 11434;
 const JARVIS_PORT: u16 = 8222;
 
 /// Small, fast model pulled at startup so the app opens quickly.
-const STARTUP_MODEL: &str = "qwen3.5:2b";
+const STARTUP_MODEL: &str = "qwen3.5:4b";
 
 /// Tiny fallback model if even the startup model can't be pulled.
 const FALLBACK_MODEL: &str = "qwen3:0.6b";
@@ -86,12 +86,14 @@ fn models_that_fit() -> Vec<&'static str> {
         .collect()
 }
 
-/// Pick the third-largest Qwen3.5 model that fits on this machine.
-/// This leaves comfortable headroom for the OS / other apps while
-/// still providing a capable model.  Falls back gracefully when
-/// fewer models fit.
+/// Pick the default model — prefers STARTUP_MODEL if it fits, otherwise
+/// falls back to the third-largest model that fits on this machine.
 fn preferred_model() -> &'static str {
     let fitting = models_that_fit();
+    // Prefer STARTUP_MODEL when it fits (fast, good quality)
+    if fitting.contains(&STARTUP_MODEL) {
+        return STARTUP_MODEL;
+    }
     match fitting.len() {
         0 => FALLBACK_MODEL,
         1 => fitting[0],

@@ -13,6 +13,7 @@ from openjarvis.cli.channel_cmd import channel
 from openjarvis.cli.chat_cmd import chat
 from openjarvis.cli.compose_cmd import compose
 from openjarvis.cli.config_cmd import config
+from openjarvis.cli.connect_cmd import connect
 from openjarvis.cli.daemon_cmd import restart, start, status, stop
 from openjarvis.cli.doctor_cmd import doctor
 from openjarvis.cli.eval_cmd import eval_group
@@ -89,6 +90,7 @@ cli.add_command(tool, "tool")
 cli.add_command(registry, "registry")
 cli.add_command(config, "config")
 cli.add_command(scan, "scan")
+cli.add_command(connect, "connect")
 
 
 def main() -> None:

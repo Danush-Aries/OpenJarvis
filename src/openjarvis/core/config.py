@@ -1240,8 +1240,9 @@ def _apply_toml_section(target: Any, section: Dict[str, Any]) -> None:
     """Overlay TOML key/value pairs onto a dataclass instance.
 
     Recursively handles nested dicts when the target attribute is itself
-    a dataclass.  Normalises TOML arrays to comma-separated strings when
-    the target field is annotated as ``str``.
+    a dataclass.  Normalises TOML arrays to comma-separated strings — both
+    for dataclass fields annotated as ``str`` and for backward-compat
+    property setters that expect string input.
     """
     for key, value in section.items():
         if hasattr(target, key):
@@ -1252,10 +1253,19 @@ def _apply_toml_section(target: Any, section: Dict[str, Any]) -> None:
                 else:
                     setattr(target, key, value)
             else:
-                # Normalise TOML arrays → comma-separated string when field is str
-                if isinstance(value, list) and hasattr(target, "__dataclass_fields__"):
-                    field_obj = target.__dataclass_fields__.get(key)
-                    if field_obj is not None and field_obj.type in ("str", str):
+                # Normalise TOML arrays → comma-separated string.
+                # Covers both real dataclass fields and backward-compat
+                # property setters (e.g. reward_weights, default_tools).
+                if isinstance(value, list):
+                    is_str_field = False
+                    if hasattr(target, "__dataclass_fields__"):
+                        field_obj = target.__dataclass_fields__.get(key)
+                        if field_obj is not None and field_obj.type in ("str", str):
+                            is_str_field = True
+                        elif field_obj is None:
+                            # Property, not a real field — normalise to string
+                            is_str_field = True
+                    if is_str_field:
                         value = ",".join(str(v) for v in value)
                 setattr(target, key, value)
 

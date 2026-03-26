@@ -22,3 +22,8 @@ try:
     import openjarvis.connectors.notion  # noqa: F401
 except ImportError:
     pass
+
+try:
+    import openjarvis.connectors.granola  # noqa: F401
+except ImportError:
+    pass

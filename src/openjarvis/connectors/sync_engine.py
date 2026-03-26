@@ -93,11 +93,18 @@ class SyncEngine:
         prior_cursor: Optional[str] = checkpoint["cursor"] if checkpoint else None
         prior_items: int = checkpoint["items_synced"] if checkpoint else 0
 
+        since: Optional[datetime] = None
+        if checkpoint and checkpoint.get("last_sync"):
+            try:
+                since = datetime.fromisoformat(checkpoint["last_sync"])
+            except (ValueError, TypeError):
+                pass
+
         items_ingested = 0
         current_cursor: Optional[str] = prior_cursor
 
         try:
-            doc_iter = connector.sync(cursor=prior_cursor)
+            doc_iter = connector.sync(since=since, cursor=prior_cursor)
 
             batch = []
             for doc in doc_iter:

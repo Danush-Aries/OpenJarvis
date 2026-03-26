@@ -17,3 +17,8 @@ try:
     import openjarvis.connectors.gmail  # noqa: F401
 except ImportError:
     pass  # httpx may not be installed
+
+try:
+    import openjarvis.connectors.notion  # noqa: F401
+except ImportError:
+    pass

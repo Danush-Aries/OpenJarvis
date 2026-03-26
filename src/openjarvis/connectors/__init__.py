@@ -9,3 +9,11 @@ from openjarvis.connectors._stubs import (
 from openjarvis.connectors.store import KnowledgeStore
 
 __all__ = ["Attachment", "BaseConnector", "Document", "KnowledgeStore", "SyncStatus"]
+
+# Auto-register built-in connectors
+import openjarvis.connectors.obsidian  # noqa: F401
+
+try:
+    import openjarvis.connectors.gmail  # noqa: F401
+except ImportError:
+    pass  # httpx may not be installed

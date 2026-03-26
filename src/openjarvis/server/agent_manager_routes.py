@@ -78,7 +78,25 @@ class _LightweightSystem:
 def _make_lightweight_system(
     engine: Any, model: str, config: Any = None,
 ) -> _LightweightSystem:
-    """Build a minimal system from the server's existing state."""
+    """Build a minimal system using a plain engine for the given model.
+
+    The server's ``app.state.engine`` is heavily wrapped
+    (MultiEngine → InstrumentedEngine → GuardrailsEngine) and can
+    hang when reused from a background thread.  Instead, create a
+    fresh OllamaEngine pointed at the same backend.
+    """
+    try:
+        from openjarvis.core.config import load_config
+        from openjarvis.engine._discovery import get_engine
+
+        cfg = config if config is not None else load_config()
+        resolved = get_engine(cfg)
+        if resolved is not None:
+            _, plain_engine = resolved
+            return _LightweightSystem(plain_engine, model, cfg)
+    except Exception:
+        pass
+    # Fallback to the (wrapped) server engine
     return _LightweightSystem(engine, model, config)
 
 

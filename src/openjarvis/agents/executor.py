@@ -203,6 +203,12 @@ class AgentExecutor:
         if not model:
             raise FatalError("No model configured for agent")
 
+        logger.info(
+            "Agent %s [%s]: using model=%s, engine=%s",
+            agent["name"], agent["id"],
+            model, type(engine).__name__,
+        )
+
         # Optionally override model via router policy
         router_policy_key = config.get("router_policy")
         if router_policy_key and self._system:
@@ -247,6 +253,16 @@ class AgentExecutor:
             input_text = f"{input_text}\n\nNew instructions:\n{user_msgs}"
             for m in pending:
                 self._manager.mark_message_delivered(m["id"])
+            logger.info(
+                "Agent %s: delivering %d pending message(s)",
+                agent["name"], len(pending),
+            )
+        else:
+            logger.info(
+                "Agent %s: no pending messages, running with "
+                "instruction only",
+                agent["name"],
+            )
 
         # Build AgentContext with memory results from FTS5 backend
         from openjarvis.agents._stubs import AgentContext
@@ -298,7 +314,22 @@ class AgentExecutor:
                 pass  # Don't break agent tick if memory retrieval fails
 
         agent_ctx.memory_results = memory_results
-        return agent_instance.run(input_text, context=agent_ctx)
+        logger.info(
+            "Agent %s: calling agent.run() with %d chars input",
+            agent["name"], len(input_text),
+        )
+        _t0 = time.time()
+        result = agent_instance.run(input_text, context=agent_ctx)
+        _elapsed = time.time() - _t0
+        logger.info(
+            "Agent %s: agent.run() completed in %.1fs, "
+            "content_len=%d, turns=%d, tokens=%s",
+            agent["name"], _elapsed,
+            len(result.content or ""),
+            result.turns,
+            result.metadata.get("total_tokens", "?"),
+        )
+        return result
 
     def _build_error_detail(self, error: AgentTickError) -> dict[str, Any]:
         """Build structured error detail for trace metadata."""
@@ -336,6 +367,12 @@ class AgentExecutor:
         """Update agent state after tick completion or failure."""
         if error is None:
             # Success
+            logger.info(
+                "Tick succeeded for agent %s in %.1fs, "
+                "response_len=%d",
+                agent_id, duration,
+                len(result.content or "") if result else 0,
+            )
             self._manager.end_tick(agent_id)
             self._manager.update_agent(agent_id, total_runs_increment=1)
 
@@ -381,6 +418,10 @@ class AgentExecutor:
                 "status": "ok",
             })
         elif isinstance(error, EscalateError):
+            logger.warning(
+                "Tick escalated for agent %s after %.1fs: %s",
+                agent_id, duration, error,
+            )
             self._manager.end_tick(agent_id)
             self._manager.update_agent(agent_id, status="needs_attention")
             self._bus.publish(EventType.AGENT_TICK_ERROR, {
@@ -390,6 +431,10 @@ class AgentExecutor:
                 "duration": duration,
             })
         else:
+            logger.error(
+                "Tick failed for agent %s after %.1fs: %s",
+                agent_id, duration, error, exc_info=error,
+            )
             self._manager.end_tick(agent_id)
             self._manager.update_agent(agent_id, status="error")
             # Write error detail to summary_memory so frontend can display it

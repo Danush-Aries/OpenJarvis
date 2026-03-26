@@ -64,6 +64,24 @@ _BROWSER_SUB_TOOLS = {
 }
 
 
+class _LightweightSystem:
+    """Minimal system facade for the executor — avoids rebuilding the
+    full JarvisSystem (which picks a random model from Ollama)."""
+
+    def __init__(self, engine: Any, model: str, config: Any = None):
+        self.engine = engine
+        self.model = model
+        self.config = config
+        self.memory_backend = None
+
+
+def _make_lightweight_system(
+    engine: Any, model: str, config: Any = None,
+) -> _LightweightSystem:
+    """Build a minimal system from the server's existing state."""
+    return _LightweightSystem(engine, model, config)
+
+
 def _ensure_registries_populated() -> None:
     """Ensure ToolRegistry and ChannelRegistry are populated.
 
@@ -452,7 +470,7 @@ def create_agent_manager_router(
         return {"status": "idle"}
 
     @agents_router.post("/{agent_id}/run")
-    async def run_agent(agent_id: str):
+    async def run_agent(agent_id: str, request: Request):
         import threading
 
         agent = manager.get_agent(agent_id)
@@ -473,28 +491,30 @@ def create_agent_manager_router(
                 status_code=409, detail="Agent is already running"
             )
 
+        # Re-use the server's engine + model so we don't pick a
+        # random model from Ollama's list.
+        server_engine = getattr(request.app.state, "engine", None)
+        server_model = getattr(request.app.state, "model", "")
+        server_config = getattr(request.app.state, "config", None)
+
         def _run_tick():
             try:
                 from openjarvis.agents.executor import AgentExecutor
                 from openjarvis.core.events import get_event_bus
-                from openjarvis.system import SystemBuilder
 
                 executor = AgentExecutor(
                     manager=manager, event_bus=get_event_bus(),
                 )
-                try:
-                    system = SystemBuilder().build()
-                    executor.set_system(system)
-                except Exception as build_err:
-                    manager.end_tick(agent_id)
-                    manager.update_agent(agent_id, status="error")
-                    manager.update_summary_memory(
-                        agent_id,
-                        f"ERROR: Failed to build system: {build_err}",
-                    )
-                    return
+                system = _make_lightweight_system(
+                    server_engine, server_model, server_config,
+                )
+                executor.set_system(system)
                 executor.execute_tick(agent_id)
             except Exception as exc:
+                logger.error(
+                    "Run-tick failed for agent %s: %s",
+                    agent_id, exc, exc_info=True,
+                )
                 try:
                     manager.end_tick(agent_id)
                 except Exception:
@@ -603,25 +623,56 @@ def create_agent_manager_router(
         if not req.stream and req.mode == "immediate":
             # Non-streaming immediate: trigger a background tick so the
             # agent processes the message, then return the stored msg.
+            # Re-use the server's existing system (correct model/engine).
             import threading
+            import time as _time
 
             from openjarvis.agents.executor import AgentExecutor
             from openjarvis.core.events import get_event_bus
-            from openjarvis.system import SystemBuilder
+
+            _srv_engine = getattr(request.app.state, "engine", None)
+            _srv_model = getattr(request.app.state, "model", "")
+            _srv_config = getattr(request.app.state, "config", None)
 
             def _immediate_tick():
+                _start = _time.time()
+                logger.info(
+                    "Immediate tick starting for agent %s "
+                    "(model=%s)",
+                    agent_id, _srv_model,
+                )
                 try:
                     executor = AgentExecutor(
                         manager=manager, event_bus=get_event_bus(),
                     )
-                    try:
-                        system = SystemBuilder().build()
-                        executor.set_system(system)
-                    except Exception:
-                        return
+                    system = _make_lightweight_system(
+                        _srv_engine, _srv_model, _srv_config,
+                    )
+                    executor.set_system(system)
+                    logger.info(
+                        "Immediate tick: system ready in %.1fs, "
+                        "executing tick for agent %s",
+                        _time.time() - _start, agent_id,
+                    )
                     executor.execute_tick(agent_id)
-                except Exception:
-                    pass
+                    logger.info(
+                        "Immediate tick completed for agent %s "
+                        "in %.1fs",
+                        agent_id, _time.time() - _start,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "Immediate tick failed for agent %s: %s",
+                        agent_id, exc, exc_info=True,
+                    )
+                    try:
+                        manager.end_tick(agent_id)
+                    except Exception:
+                        pass
+                    manager.update_agent(agent_id, status="error")
+                    manager.update_summary_memory(
+                        agent_id, f"ERROR: {exc}",
+                    )
 
             threading.Thread(
                 target=_immediate_tick, daemon=True,

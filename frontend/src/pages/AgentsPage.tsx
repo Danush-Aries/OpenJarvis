@@ -1280,7 +1280,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              handleSend('queued');
+              handleSend('immediate');
             }
           }}
           placeholder="Send a message to this agent..."
@@ -1293,23 +1293,8 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
             disabled={sending || !input.trim()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer font-medium"
             style={{ background: 'var(--color-accent)', color: '#fff', opacity: sending || !input.trim() ? 0.5 : 1 }}
-            title="Send immediately (interrupts agent)"
           >
-            <Zap size={13} /> Immediate
-          </button>
-          <button
-            onClick={() => handleSend('queued')}
-            disabled={sending || !input.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer"
-            style={{
-              background: 'var(--color-bg-secondary)',
-              color: 'var(--color-text)',
-              border: '1px solid var(--color-border)',
-              opacity: sending || !input.trim() ? 0.5 : 1,
-            }}
-            title="Queue message for next run"
-          >
-            <Send size={13} /> Queue
+            <Send size={13} /> Send
           </button>
         </div>
       </div>

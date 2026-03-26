@@ -28,6 +28,7 @@ def _create_fake_notes_db(db_path: Path) -> None:
         CREATE TABLE ZICCLOUDSYNCINGOBJECT (
             Z_PK INTEGER PRIMARY KEY,
             ZTITLE TEXT,
+            ZTITLE1 TEXT,
             ZMODIFICATIONDATE REAL,
             ZIDENTIFIER TEXT,
             ZNOTE INTEGER
@@ -44,7 +45,7 @@ def _create_fake_notes_db(db_path: Path) -> None:
     compressed1 = gzip.compress(html1.encode())
     conn.execute(
         "INSERT INTO ZICCLOUDSYNCINGOBJECT VALUES "
-        "(1, 'Shopping List', 694310400.0, 'note-001', 1)"
+        "(1, NULL, 'Shopping List', 694310400.0, 'note-001', 1)"
     )
     conn.execute("INSERT INTO ZICNOTEDATA VALUES (1, ?, 1)", (compressed1,))
 
@@ -53,7 +54,7 @@ def _create_fake_notes_db(db_path: Path) -> None:
     compressed2 = gzip.compress(html2.encode())
     conn.execute(
         "INSERT INTO ZICCLOUDSYNCINGOBJECT VALUES "
-        "(2, 'Meeting Notes', 694396800.0, 'note-002', 2)"
+        "(2, NULL, 'Meeting Notes', 694396800.0, 'note-002', 2)"
     )
     conn.execute("INSERT INTO ZICNOTEDATA VALUES (2, ?, 2)", (compressed2,))
 

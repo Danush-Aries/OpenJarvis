@@ -16,8 +16,9 @@ epoch of 2001-01-01 00:00:00 UTC.  Conversion formula::
 
 Content extraction
 ------------------
-The ``ZDATA`` column in ``ZICNOTEDATA`` contains gzip-compressed HTML.  Plain
-text is obtained by decompressing the bytes and stripping HTML tags.
+The ``ZDATA`` column in ``ZICNOTEDATA`` contains gzip-compressed protobuf
+(``com.apple.notes.ICNote``).  Plain text is obtained by decompressing the
+bytes, decoding to UTF-8, and stripping protobuf control bytes.
 """
 
 from __future__ import annotations
@@ -70,24 +71,38 @@ def _apple_ts_to_datetime(apple_seconds: float) -> datetime:
 
 
 def _extract_text_from_zdata(zdata: bytes) -> str:
-    """Decompress gzip bytes and strip HTML tags to return plain text.
+    """Decompress gzip bytes and extract plain text from the protobuf payload.
 
     Parameters
     ----------
     zdata:
-        Raw bytes from the ``ZDATA`` column (gzip-compressed HTML).
+        Raw bytes from the ``ZDATA`` column — gzip-compressed protobuf
+        (``com.apple.notes.ICNote``).
 
     Returns
     -------
     str
-        Plain text with all HTML tags removed.  Returns an empty string if
-        decompression fails.
+        Plain text with protobuf control bytes stripped.  Returns an empty
+        string if decompression fails.
     """
     try:
-        html = gzip.decompress(zdata).decode("utf-8", errors="replace")
+        raw = gzip.decompress(zdata)
     except Exception:  # noqa: BLE001
         return ""
-    return re.sub(r"<[^>]+>", "", html)
+
+    text = raw.decode("utf-8", errors="replace")
+    # Strip HTML tags first (handles test fixtures and any HTML-formatted notes)
+    text = re.sub(r"<[^>]+>", "", text)
+    # Strip non-printable control bytes and U+FFFD replacement chars that
+    # come from the protobuf wire format.
+    cleaned = re.sub(r"[\x00-\x09\x0b\x0c\x0e-\x1f\x7f-\x9f\ufffd]+", " ", text)
+    # Collapse whitespace runs
+    cleaned = re.sub(r" {2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = cleaned.strip()
+    # Strip short leading protobuf varint artifacts (e.g. "3 3 " or "b b ")
+    cleaned = re.sub(r"^(?:[a-z0-9] ){1,4}", "", cleaned)
+    return cleaned.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +175,9 @@ class AppleNotesConnector(BaseConnector):
 
         try:
             rows = conn.execute(
-                "SELECT n.ZIDENTIFIER, n.ZTITLE, n.ZMODIFICATIONDATE, d.ZDATA "
+                "SELECT n.ZIDENTIFIER, "
+                "  COALESCE(n.ZTITLE1, n.ZTITLE, '') AS title, "
+                "  n.ZMODIFICATIONDATE, d.ZDATA "
                 "FROM ZICCLOUDSYNCINGOBJECT n "
                 "JOIN ZICNOTEDATA d ON d.ZNOTE = n.Z_PK "
                 "ORDER BY n.ZMODIFICATIONDATE ASC"

@@ -597,7 +597,35 @@ def create_agent_manager_router(
         # Store user message in DB (always, regardless of stream mode)
         msg = manager.send_message(agent_id, req.content, mode=req.mode)
 
-        if not req.stream:
+        if not req.stream and req.mode != "immediate":
+            return msg
+
+        if not req.stream and req.mode == "immediate":
+            # Non-streaming immediate: trigger a background tick so the
+            # agent processes the message, then return the stored msg.
+            import threading
+
+            from openjarvis.agents.executor import AgentExecutor
+            from openjarvis.core.events import get_event_bus
+            from openjarvis.system import SystemBuilder
+
+            def _immediate_tick():
+                try:
+                    executor = AgentExecutor(
+                        manager=manager, event_bus=get_event_bus(),
+                    )
+                    try:
+                        system = SystemBuilder().build()
+                        executor.set_system(system)
+                    except Exception:
+                        return
+                    executor.execute_tick(agent_id)
+                except Exception:
+                    pass
+
+            threading.Thread(
+                target=_immediate_tick, daemon=True,
+            ).start()
             return msg
 
         # --- Streaming mode: run agent and return SSE response ---

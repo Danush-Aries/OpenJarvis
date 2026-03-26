@@ -1166,7 +1166,7 @@ function AgentCard({
 // Detail view — Interact tab
 // ---------------------------------------------------------------------------
 
-function InteractTab({ agentId }: { agentId: string }) {
+function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: string }) {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -1183,10 +1183,19 @@ function InteractTab({ agentId }: { agentId: string }) {
 
   useEffect(() => {
     loadMessages();
+    // Poll for new messages while the tab is visible (agent responses
+    // arrive asynchronously after a background tick completes).
+    const interval = setInterval(loadMessages, 3000);
+    return () => clearInterval(interval);
   }, [loadMessages]);
 
+  // Scroll to bottom only on initial load, not on every poll update.
+  const hasScrolled = useRef(false);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!hasScrolled.current && messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      hasScrolled.current = true;
+    }
   }, [messages]);
 
   async function handleSend(mode: 'immediate' | 'queued') {
@@ -1203,15 +1212,24 @@ function InteractTab({ agentId }: { agentId: string }) {
     }
   }
 
+  // Reverse so newest messages appear at the bottom (closest to input).
+  // Filter out agent responses with empty content.
+  const displayMessages = [...messages]
+    .filter((m) => m.direction === 'user_to_agent' || m.content.trim())
+    .reverse();
+
+  const isAgentWorking = agentStatus === 'running';
+  const hasPending = messages.some((m) => m.status === 'pending');
+
   return (
     <div className="flex flex-col h-full" style={{ minHeight: 320 }}>
       <div className="flex-1 overflow-y-auto space-y-3 pb-4" style={{ maxHeight: 400 }}>
-        {messages.length === 0 && (
+        {displayMessages.length === 0 && !isAgentWorking && (
           <div className="text-sm text-center py-8" style={{ color: 'var(--color-text-tertiary)' }}>
             No messages yet. Send a message to interact with this agent.
           </div>
         )}
-        {messages.map((msg) => (
+        {displayMessages.map((msg) => (
           <div
             key={msg.id}
             className={`flex ${msg.direction === 'user_to_agent' ? 'justify-end' : 'justify-start'}`}
@@ -1225,14 +1243,30 @@ function InteractTab({ agentId }: { agentId: string }) {
               }}
             >
               <p>{msg.content}</p>
-              <p
-                className="text-xs mt-1 opacity-70"
-              >
-                {msg.mode} · {msg.status}
+              <p className="text-xs mt-1 opacity-70">
+                {msg.status === 'pending' ? 'sending...' : new Date(msg.created_at * 1000).toLocaleTimeString()}
               </p>
             </div>
           </div>
         ))}
+        {/* Progress indicator while agent is working */}
+        {(isAgentWorking || hasPending) && (
+          <div className="flex justify-start">
+            <div
+              className="px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />
+                {sending ? 'Sending message...' : 'Agent is thinking...'}
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
       {/* Input area */}
@@ -1792,7 +1826,7 @@ export function AgentsPage() {
         )}
 
         {/* Tab: Interact */}
-        {detailTab === 'interact' && <InteractTab agentId={selectedAgent.id} />}
+        {detailTab === 'interact' && <InteractTab agentId={selectedAgent.id} agentStatus={selectedAgent.status} />}
 
         {/* Tab: Tasks */}
         {detailTab === 'tasks' && (

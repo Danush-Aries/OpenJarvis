@@ -32,3 +32,8 @@ try:
     import openjarvis.connectors.granola  # noqa: F401
 except ImportError:
     pass
+
+try:
+    import openjarvis.connectors.gcontacts  # noqa: F401
+except ImportError:
+    pass

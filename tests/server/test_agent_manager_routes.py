@@ -224,6 +224,24 @@ class TestAgentManagerRoutes:
         assert res.status_code == 404
 
 
+def test_run_agent_concurrent_returns_409(tmp_path):
+    """Rapid Run Now clicks should not spawn multiple ticks."""
+    from openjarvis.agents.manager import AgentManager
+
+    mgr = AgentManager(db_path=str(tmp_path / "test.db"))
+    agent = mgr.create_agent("Test", config={"schedule_type": "manual"})
+    aid = agent["id"]
+
+    # Simulate first click acquiring the tick
+    mgr.start_tick(aid)
+
+    # Second click should fail
+    with pytest.raises(ValueError, match="already executing a tick"):
+        mgr.start_tick(aid)
+
+    mgr.end_tick(aid)
+
+
 @pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")
 class TestAgentManagerStreaming:
     """Tests for the SSE streaming mode of the managed-agent messages endpoint."""

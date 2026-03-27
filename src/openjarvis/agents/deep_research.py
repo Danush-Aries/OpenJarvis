@@ -31,6 +31,7 @@ def _tc_args(tc: dict) -> str:
     return tc["arguments"]
 
 DEEP_RESEARCH_SYSTEM_PROMPT = """\
+/no_think
 You are a deep research agent. Your job is to search the user's personal \
 knowledge base thoroughly and produce a well-cited narrative report.
 

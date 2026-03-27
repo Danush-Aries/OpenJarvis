@@ -1075,26 +1075,100 @@ function ChannelsTab({ agentId }: { agentId: string }) {
           {connected.map((c) => {
             const meta = SOURCE_CATALOG.find(s => s.connector_id === c.connector_id);
             const unit = meta?.unitLabel || 'items';
+            const isReconnecting = expandedId === c.connector_id;
             return (
             <div
               key={c.connector_id}
               style={{
                 background: 'var(--color-bg-secondary)',
                 border: '1px solid #2a5a3a',
-                borderRadius: 6, padding: '12px 14px',
-                display: 'flex', alignItems: 'center', gap: 8,
+                borderRadius: 6,
+                overflow: 'hidden',
+                gridColumn: isReconnecting ? '1 / -1' : undefined,
               }}
             >
-              <span style={{ fontSize: 20 }}>{iconMap[c.connector_id] || '\uD83D\uDD17'}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>
-                  {c.display_name}
+              <div style={{
+                padding: '12px 14px',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 20 }}>{iconMap[c.connector_id] || '\uD83D\uDD17'}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>
+                    {c.display_name}
+                  </div>
+                  <div style={{ fontSize: 12, color: c.chunks > 0 ? '#4ade80' : '#f59e0b' }}>
+                    {c.chunks > 0
+                      ? `${c.chunks.toLocaleString()} ${unit}`
+                      : 'Connected — no data synced yet'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#4ade80' }}>
-                  {c.chunks.toLocaleString()} {unit}
-                </div>
+                <button
+                  onClick={() => setExpandedId(isReconnecting ? null : c.connector_id)}
+                  style={{
+                    fontSize: 10, padding: '3px 10px',
+                    background: 'transparent',
+                    color: 'var(--color-text-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 4, cursor: 'pointer',
+                  }}
+                >
+                  {isReconnecting ? 'Cancel' : 'Reconnect'}
+                </button>
               </div>
-              <span style={{ color: '#4ade80', fontSize: 12 }}>{'\u2713'}</span>
+              {isReconnecting && meta?.steps && (
+                <div style={{
+                  borderTop: '1px solid var(--color-border)',
+                  padding: 12,
+                }}>
+                  <div style={{
+                    fontSize: 12, color: '#f59e0b',
+                    marginBottom: 8,
+                  }}>
+                    Re-enter credentials to reconnect this source.
+                  </div>
+                  {meta.steps.map((step, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: 'var(--color-bg)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 6, padding: 10,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div style={{
+                        color: '#7c3aed', fontSize: 10,
+                        fontWeight: 600, marginBottom: 3,
+                      }}>
+                        STEP {i + 1}
+                      </div>
+                      <div style={{ fontSize: 12, marginBottom: step.url ? 4 : 0 }}>
+                        {step.label}
+                      </div>
+                      {step.url && (
+                        <a
+                          href={step.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: '#60a5fa', fontSize: 11,
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          {step.urlLabel || 'Open'} →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                  {meta.inputFields && (
+                    <InlineConnectForm
+                      fields={meta.inputFields}
+                      loading={loading}
+                      onSubmit={(req) => handleConnect(c.connector_id, req)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
             );
           })}

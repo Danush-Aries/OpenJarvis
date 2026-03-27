@@ -101,11 +101,25 @@ def create_connectors_router():
 
     def _connector_summary(connector_id: str, instance: Any) -> Dict[str, Any]:
         """Build the dict returned by GET /connectors."""
+        chunks = 0
+        try:
+            from openjarvis.connectors.store import KnowledgeStore
+
+            store = KnowledgeStore()
+            rows = store._conn.execute(
+                "SELECT COUNT(*) FROM knowledge_chunks WHERE source = ?",
+                (connector_id,),
+            ).fetchone()
+            chunks = rows[0] if rows else 0
+        except Exception:
+            pass
+
         return {
             "connector_id": connector_id,
             "display_name": getattr(instance, "display_name", connector_id),
             "auth_type": getattr(instance, "auth_type", "unknown"),
             "connected": instance.is_connected(),
+            "chunks": chunks,
         }
 
     # ------------------------------------------------------------------

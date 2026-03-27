@@ -8,6 +8,8 @@ import time
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, Dict, List
 
+import httpx
+
 from openjarvis.core.registry import EngineRegistry
 from openjarvis.core.types import Message
 from openjarvis.engine._base import (
@@ -46,7 +48,12 @@ PRICING: Dict[str, tuple[float, float]] = {
 
 # Well-known model IDs per provider
 _OPENAI_MODELS = [
-    "gpt-4o", "gpt-4o-mini", "gpt-5", "gpt-5.4", "gpt-5-mini", "o3-mini",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-5",
+    "gpt-5.4",
+    "gpt-5-mini",
+    "o3-mini",
 ]
 _ANTHROPIC_MODELS = [
     "claude-sonnet-4-20250514",
@@ -85,6 +92,16 @@ _OPENROUTER_POPULAR = [
     "openrouter/qwen/qwen3-235b-a22b",
 ]
 
+# Codex models — prefixed with "codex/" for ChatGPT Plus/Pro subscribers.
+# Uses the Responses API at chatgpt.com, not the standard OpenAI API.
+_CODEX_MODELS = [
+    "codex/gpt-4o",
+    "codex/gpt-4o-mini",
+    "codex/o3-mini",
+    "codex/gpt-5-mini",
+    "codex/gpt-5-mini-2025-08-07",
+]
+
 
 def _is_minimax_model(model: str) -> bool:
     return model.lower().startswith("minimax")
@@ -92,6 +109,10 @@ def _is_minimax_model(model: str) -> bool:
 
 def _is_openrouter_model(model: str) -> bool:
     return model.startswith("openrouter/")
+
+
+def _is_codex_model(model: str) -> bool:
+    return model.startswith("codex/")
 
 
 def _is_anthropic_model(model: str) -> bool:
@@ -159,11 +180,13 @@ def _convert_tools_to_anthropic(
     result = []
     for tool in openai_tools:
         func = tool.get("function", {})
-        result.append({
-            "name": func.get("name", ""),
-            "description": func.get("description", ""),
-            "input_schema": func.get("parameters", {}),
-        })
+        result.append(
+            {
+                "name": func.get("name", ""),
+                "description": func.get("description", ""),
+                "input_schema": func.get("parameters", {}),
+            }
+        )
     return result
 
 
@@ -174,11 +197,13 @@ def _convert_tools_to_google(
     declarations = []
     for tool in openai_tools:
         func = tool.get("function", {})
-        declarations.append({
-            "name": func.get("name", ""),
-            "description": func.get("description", ""),
-            "parameters": func.get("parameters", {}),
-        })
+        declarations.append(
+            {
+                "name": func.get("name", ""),
+                "description": func.get("description", ""),
+                "parameters": func.get("parameters", {}),
+            }
+        )
     return declarations
 
 
@@ -194,6 +219,7 @@ class CloudEngine(InferenceEngine):
         self._google_client: Any = None
         self._openrouter_client: Any = None
         self._minimax_client: Any = None
+        self._codex_client: Any = None
         # Gemini thought_signatures: tool_call_id -> signature bytes
         self._thought_sigs: Dict[str, bytes] = {}
         self._init_clients()
@@ -202,22 +228,24 @@ class CloudEngine(InferenceEngine):
         if os.environ.get("OPENAI_API_KEY"):
             try:
                 import openai
+
                 self._openai_client = openai.OpenAI()
             except ImportError:
                 pass
         if os.environ.get("ANTHROPIC_API_KEY"):
             try:
                 import anthropic
+
                 self._anthropic_client = anthropic.Anthropic()
             except ImportError:
                 pass
-        gemini_key = (
-            os.environ.get("GEMINI_API_KEY")
-            or os.environ.get("GOOGLE_API_KEY")
+        gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get(
+            "GOOGLE_API_KEY"
         )
         if gemini_key:
             try:
                 from google import genai
+
                 self._google_client = genai.Client(api_key=gemini_key)
             except ImportError:
                 pass
@@ -225,6 +253,7 @@ class CloudEngine(InferenceEngine):
         if openrouter_key:
             try:
                 import openai
+
                 self._openrouter_client = openai.OpenAI(
                     base_url="https://openrouter.ai/api/v1",
                     api_key=openrouter_key,
@@ -235,12 +264,125 @@ class CloudEngine(InferenceEngine):
         if minimax_key:
             try:
                 import openai
+
                 self._minimax_client = openai.OpenAI(
                     base_url="https://api.minimax.io/v1",
                     api_key=minimax_key,
                 )
             except ImportError:
                 pass
+        # Codex — uses the OpenAI Responses API.
+        # Supports both standard API keys (api.openai.com) and ChatGPT
+        # OAuth tokens (chatgpt.com) via OPENAI_CODEX_BASE_URL override.
+        codex_token = os.environ.get("OPENAI_CODEX_API_KEY")
+        if codex_token:
+            codex_url = os.environ.get(
+                "OPENAI_CODEX_BASE_URL",
+                "https://api.openai.com/v1",
+            ).rstrip("/")
+            if not codex_url.endswith("/responses"):
+                codex_url += "/responses"
+            self._codex_client = {
+                "token": codex_token,
+                "url": codex_url,
+            }
+
+    @staticmethod
+    def _codex_build_input(
+        messages: Sequence[Message],
+    ) -> tuple[str, List[Dict[str, Any]]]:
+        """Convert Message list to Codex Responses API format.
+
+        Returns (system_instructions, input_messages).
+        """
+        instructions = ""
+        input_msgs: List[Dict[str, Any]] = []
+        for m in messages:
+            if m.role.value == "system":
+                instructions = m.content
+            elif m.role.value in ("user", "assistant"):
+                input_msgs.append(
+                    {
+                        "role": m.role.value,
+                        "content": [{"type": "input_text", "text": m.content}],
+                    }
+                )
+        return instructions, input_msgs
+
+    def _generate_codex(
+        self,
+        messages: Sequence[Message],
+        *,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Generate via Codex Responses API (ChatGPT Plus/Pro)."""
+        if self._codex_client is None:
+            raise EngineConnectionError(
+                "Codex client not available — set OPENAI_CODEX_API_KEY"
+            )
+        actual_model = model.removeprefix("codex/")
+        instructions, input_msgs = self._codex_build_input(messages)
+
+        body: Dict[str, Any] = {
+            "model": actual_model,
+            "input": input_msgs,
+            "store": False,
+            "stream": False,
+        }
+        if instructions:
+            body["instructions"] = instructions
+
+        headers = {
+            "Authorization": f"Bearer {self._codex_client['token']}",
+            "Content-Type": "application/json",
+            "OpenAI-Beta": "responses=experimental",
+        }
+
+        t0 = time.monotonic()
+        resp = httpx.post(
+            self._codex_client["url"],
+            json=body,
+            headers=headers,
+            timeout=120.0,
+        )
+        elapsed = time.monotonic() - t0
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Extract text from Responses API output.
+        # The output array contains items of type "reasoning" and "message";
+        # we want the "message" item's content blocks.
+        content = data.get("output_text", "")
+        if not content:
+            for item in data.get("output", []):
+                if item.get("type") not in ("message", None):
+                    continue
+                for block in item.get("content", []):
+                    if block.get("type") == "output_text":
+                        content = block.get("text", "")
+                        break
+                if content:
+                    break
+
+        usage_data = data.get("usage", {})
+        prompt_tokens = usage_data.get("input_tokens", 0)
+        completion_tokens = usage_data.get("output_tokens", 0)
+
+        return {
+            "content": content,
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
+            "model": actual_model,
+            "finish_reason": "stop",
+            "cost_usd": 0.0,
+            "ttft": elapsed,
+        }
 
     def _generate_openai(
         self,
@@ -359,10 +501,12 @@ class CloudEngine(InferenceEngine):
                 ):
                     chat_msgs[-1]["content"].append(tool_result_block)
                 else:
-                    chat_msgs.append({
-                        "role": "user",
-                        "content": [tool_result_block],
-                    })
+                    chat_msgs.append(
+                        {
+                            "role": "user",
+                            "content": [tool_result_block],
+                        }
+                    )
             elif m.role.value == "assistant" and m.tool_calls:
                 # Convert assistant messages with tool_calls to Anthropic
                 # content blocks (text + tool_use)
@@ -376,12 +520,14 @@ class CloudEngine(InferenceEngine):
                             args = json.loads(args)
                         except (json.JSONDecodeError, TypeError):
                             args = {"input": args}
-                    content_blocks.append({
-                        "type": "tool_use",
-                        "id": tc.id,
-                        "name": tc.name,
-                        "input": args if isinstance(args, dict) else {},
-                    })
+                    content_blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.id,
+                            "name": tc.name,
+                            "input": args if isinstance(args, dict) else {},
+                        }
+                    )
                 chat_msgs.append({"role": "assistant", "content": content_blocks})
             else:
                 chat_msgs.append({"role": m.role.value, "content": m.content})
@@ -428,13 +574,15 @@ class CloudEngine(InferenceEngine):
         tool_calls: list[Dict[str, Any]] = []
         for block in resp.content:
             if getattr(block, "type", None) == "tool_use":
-                tool_calls.append({
-                    "id": block.id,
-                    "name": block.name,
-                    "arguments": json.dumps(block.input)
-                    if isinstance(block.input, dict)
-                    else str(block.input),
-                })
+                tool_calls.append(
+                    {
+                        "id": block.id,
+                        "name": block.name,
+                        "arguments": json.dumps(block.input)
+                        if isinstance(block.input, dict)
+                        else str(block.input),
+                    }
+                )
             elif hasattr(block, "text"):
                 content_parts.append(block.text)
 
@@ -571,9 +719,7 @@ class CloudEngine(InferenceEngine):
             for part in parts:
                 if hasattr(part, "function_call") and part.function_call:
                     fc = part.function_call
-                    fc_args = (
-                        dict(fc.args) if hasattr(fc.args, "items") else {}
-                    )
+                    fc_args = dict(fc.args) if hasattr(fc.args, "items") else {}
                     tc_dict: Dict[str, Any] = {
                         "id": f"google_{fc.name}",
                         "name": fc.name,
@@ -598,12 +744,8 @@ class CloudEngine(InferenceEngine):
                 content = ""
 
         um = resp.usage_metadata
-        prompt_tokens = (
-            getattr(um, "prompt_token_count", 0) if um else 0
-        )
-        completion_tokens = (
-            getattr(um, "candidates_token_count", 0) if um else 0
-        )
+        prompt_tokens = getattr(um, "prompt_token_count", 0) if um else 0
+        completion_tokens = getattr(um, "candidates_token_count", 0) if um else 0
 
         result: Dict[str, Any] = {
             "content": content,
@@ -732,6 +874,8 @@ class CloudEngine(InferenceEngine):
             max_tokens=max_tokens,
             **kwargs,
         )
+        if _is_codex_model(model):
+            return self._generate_codex(messages, **kw)
         if _is_openrouter_model(model):
             return self._generate_openrouter(messages, **kw)
         if _is_minimax_model(model):
@@ -757,31 +901,80 @@ class CloudEngine(InferenceEngine):
             max_tokens=max_tokens,
             **kwargs,
         )
-        if _is_openrouter_model(model):
-            async for token in self._stream_openrouter(
-                messages, **kw
-            ):
+        if _is_codex_model(model):
+            async for token in self._stream_codex(messages, **kw):
+                yield token
+        elif _is_openrouter_model(model):
+            async for token in self._stream_openrouter(messages, **kw):
                 yield token
         elif _is_minimax_model(model):
-            async for token in self._stream_minimax(
-                messages, **kw
-            ):
+            async for token in self._stream_minimax(messages, **kw):
                 yield token
         elif _is_anthropic_model(model):
-            async for token in self._stream_anthropic(
-                messages, **kw
-            ):
+            async for token in self._stream_anthropic(messages, **kw):
                 yield token
         elif _is_google_model(model):
-            async for token in self._stream_google(
-                messages, **kw
-            ):
+            async for token in self._stream_google(messages, **kw):
                 yield token
         else:
-            async for token in self._stream_openai(
-                messages, **kw
-            ):
+            async for token in self._stream_openai(messages, **kw):
                 yield token
+
+    async def _stream_codex(
+        self,
+        messages: Sequence[Message],
+        *,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        **kwargs: Any,
+    ) -> AsyncIterator[str]:
+        """Stream via Codex Responses API (SSE)."""
+        if self._codex_client is None:
+            raise EngineConnectionError("Codex client not available")
+        actual_model = model.removeprefix("codex/")
+        instructions, input_msgs = self._codex_build_input(messages)
+
+        body: Dict[str, Any] = {
+            "model": actual_model,
+            "input": input_msgs,
+            "store": False,
+            "stream": True,
+        }
+        if instructions:
+            body["instructions"] = instructions
+
+        headers = {
+            "Authorization": f"Bearer {self._codex_client['token']}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "OpenAI-Beta": "responses=experimental",
+        }
+
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "POST",
+                self._codex_client["url"],
+                json=body,
+                headers=headers,
+                timeout=120.0,
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    payload = line[6:]
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(payload)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    etype = event.get("type", "")
+                    if etype == "response.output_text.delta":
+                        delta = event.get("delta", "")
+                        if delta:
+                            yield delta
 
     async def _stream_openai(
         self,
@@ -940,6 +1133,8 @@ class CloudEngine(InferenceEngine):
             models.extend(_OPENROUTER_POPULAR)
         if self._minimax_client is not None:
             models.extend(_MINIMAX_MODELS)
+        if self._codex_client is not None:
+            models.extend(_CODEX_MODELS)
         return models
 
     def health(self) -> bool:
@@ -949,6 +1144,7 @@ class CloudEngine(InferenceEngine):
             or self._google_client is not None
             or self._openrouter_client is not None
             or self._minimax_client is not None
+            or self._codex_client is not None
         )
 
     def close(self) -> None:
@@ -970,6 +1166,8 @@ class CloudEngine(InferenceEngine):
             if hasattr(self._minimax_client, "close"):
                 self._minimax_client.close()
             self._minimax_client = None
+        if self._codex_client is not None:
+            self._codex_client = None
 
 
 __all__ = ["CloudEngine", "PRICING", "_annotate_anthropic_cache", "estimate_cost"]

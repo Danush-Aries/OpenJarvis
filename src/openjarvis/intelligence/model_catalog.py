@@ -650,6 +650,89 @@ BUILTIN_MODELS: List[ModelSpec] = [
         },
     ),
     # -----------------------------------------------------------------------
+    # Cloud models — OpenAI Codex (ChatGPT Plus/Pro subscription)
+    # -----------------------------------------------------------------------
+    ModelSpec(
+        model_id="codex/gpt-4o",
+        name="GPT-4o (Codex)",
+        parameter_count_b=0.0,
+        context_length=128000,
+        supported_engines=("cloud",),
+        provider="openai-codex",
+        requires_api_key=True,
+        metadata={
+            "architecture": "proprietary",
+            "auth": "OPENAI_CODEX_API_KEY",
+            "pricing_input": 0.0,
+            "pricing_output": 0.0,
+            "url": "https://platform.openai.com/docs/models/gpt-4o",
+        },
+    ),
+    ModelSpec(
+        model_id="codex/gpt-4o-mini",
+        name="GPT-4o Mini (Codex)",
+        parameter_count_b=0.0,
+        context_length=128000,
+        supported_engines=("cloud",),
+        provider="openai-codex",
+        requires_api_key=True,
+        metadata={
+            "architecture": "proprietary",
+            "auth": "OPENAI_CODEX_API_KEY",
+            "pricing_input": 0.0,
+            "pricing_output": 0.0,
+            "url": "https://platform.openai.com/docs/models/gpt-4o-mini",
+        },
+    ),
+    ModelSpec(
+        model_id="codex/o3-mini",
+        name="o3-mini (Codex)",
+        parameter_count_b=0.0,
+        context_length=200000,
+        supported_engines=("cloud",),
+        provider="openai-codex",
+        requires_api_key=True,
+        metadata={
+            "architecture": "proprietary",
+            "auth": "OPENAI_CODEX_API_KEY",
+            "pricing_input": 0.0,
+            "pricing_output": 0.0,
+            "url": "https://platform.openai.com/docs/models",
+        },
+    ),
+    ModelSpec(
+        model_id="codex/gpt-5-mini",
+        name="GPT-5 Mini (Codex)",
+        parameter_count_b=0.0,
+        context_length=400000,
+        supported_engines=("cloud",),
+        provider="openai-codex",
+        requires_api_key=True,
+        metadata={
+            "architecture": "proprietary",
+            "auth": "OPENAI_CODEX_API_KEY",
+            "pricing_input": 0.0,
+            "pricing_output": 0.0,
+            "url": "https://platform.openai.com/docs/models",
+        },
+    ),
+    ModelSpec(
+        model_id="codex/gpt-5-mini-2025-08-07",
+        name="GPT-5 Mini 2025-08-07 (Codex)",
+        parameter_count_b=0.0,
+        context_length=400000,
+        supported_engines=("cloud",),
+        provider="openai-codex",
+        requires_api_key=True,
+        metadata={
+            "architecture": "proprietary",
+            "auth": "OPENAI_CODEX_API_KEY",
+            "pricing_input": 0.0,
+            "pricing_output": 0.0,
+            "url": "https://platform.openai.com/docs/models",
+        },
+    ),
+    # -----------------------------------------------------------------------
     # Cloud models — Anthropic
     # -----------------------------------------------------------------------
     ModelSpec(

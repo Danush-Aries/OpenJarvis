@@ -304,6 +304,8 @@ export interface ManagedAgent {
   budget?: number;
   // Learning
   learning_enabled?: boolean;
+  // Live progress
+  current_activity?: string;
 }
 
 export interface AgentTask {

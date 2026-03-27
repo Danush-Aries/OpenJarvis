@@ -111,6 +111,7 @@ class AgentManager:
             "ALTER TABLE managed_agents ADD COLUMN last_run_at REAL",
             "ALTER TABLE managed_agents ADD COLUMN last_activity_at REAL",
             "ALTER TABLE managed_agents ADD COLUMN stall_retries INTEGER DEFAULT 0",
+            "ALTER TABLE managed_agents ADD COLUMN current_activity TEXT DEFAULT ''",
         ]
         for migration in _MIGRATIONS:
             try:
@@ -160,7 +161,7 @@ class AgentManager:
     def update_agent(self, agent_id: str, **kwargs: Any) -> Dict[str, Any]:
         sets: List[str] = []
         vals: List[Any] = []
-        for key in ("name", "agent_type", "status"):
+        for key in ("name", "agent_type", "status", "current_activity"):
             if key in kwargs:
                 sets.append(f"{key} = ?")
                 vals.append(kwargs[key])
@@ -222,7 +223,12 @@ class AgentManager:
         self._set_status(agent_id, "running")
 
     def end_tick(self, agent_id: str) -> None:
-        self._set_status(agent_id, "idle")
+        self._conn.execute(
+            "UPDATE managed_agents SET status = 'idle', "
+            "current_activity = '', updated_at = ? WHERE id = ?",
+            (time.time(), agent_id),
+        )
+        self._conn.commit()
 
     # ── Checkpoints ───────────────────────────────────────────────
 
@@ -638,6 +644,7 @@ class AgentManager:
             "last_run_at": row["last_run_at"],
             "last_activity_at": row["last_activity_at"],
             "stall_retries": row["stall_retries"] or 0,
+            "current_activity": row["current_activity"] or "",
         }
 
     @staticmethod

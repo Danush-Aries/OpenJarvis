@@ -47,6 +47,13 @@ class AgentExecutor:
         """Deferred system injection — called after JarvisSystem is constructed."""
         self._system = system
 
+    def _set_activity(self, agent_id: str, activity: str) -> None:
+        """Update the agent's current_activity for progress visibility."""
+        try:
+            self._manager.update_agent(agent_id, current_activity=activity)
+        except Exception:
+            pass  # Non-critical
+
     def run_ephemeral(
         self,
         agent_type: str,
@@ -75,6 +82,7 @@ class AgentExecutor:
         """
         try:
             self._manager.start_tick(agent_id)
+            self._set_activity(agent_id, "Preparing tick...")
         except ValueError:
             logger.warning("Agent %s already running, skipping tick", agent_id)
             return
@@ -208,6 +216,7 @@ class AgentExecutor:
             agent["name"], agent["id"],
             model, type(engine).__name__,
         )
+        self._set_activity(agent["id"], f"Loading model {model}...")
 
         # Optionally override model via router policy
         router_policy_key = config.get("router_policy")
@@ -261,6 +270,10 @@ class AgentExecutor:
             logger.info(
                 "Agent %s: delivering %d pending message(s)",
                 agent["name"], len(pending),
+            )
+            self._set_activity(
+                agent["id"],
+                f"Delivering {len(pending)} message(s)...",
             )
         else:
             logger.info(
@@ -319,6 +332,7 @@ class AgentExecutor:
                 pass  # Don't break agent tick if memory retrieval fails
 
         agent_ctx.memory_results = memory_results
+        self._set_activity(agent["id"], "Generating response...")
         logger.info(
             "Agent %s: calling agent.run() with %d chars input",
             agent["name"], len(input_text),
@@ -329,6 +343,9 @@ class AgentExecutor:
         # Retry once if the model returned empty content (common with
         # Qwen3.5 thinking mode consuming all tokens).
         if not (result.content or "").strip():
+            self._set_activity(
+                agent["id"], "Retrying (empty response)...",
+            )
             logger.warning(
                 "Agent %s: empty content, retrying once",
                 agent["name"],
@@ -380,6 +397,7 @@ class AgentExecutor:
         duration: float,
     ) -> None:
         """Update agent state after tick completion or failure."""
+        self._set_activity(agent_id, "Finalizing...")
         if error is None:
             # Success
             logger.info(

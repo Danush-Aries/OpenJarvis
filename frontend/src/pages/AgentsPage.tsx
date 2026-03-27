@@ -1170,24 +1170,31 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [currentActivity, setCurrentActivity] = useState('');
+  const [liveStatus, setLiveStatus] = useState(agentStatus);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const loadMessages = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const msgs = await fetchAgentMessages(agentId);
+      const [msgs, agent] = await Promise.all([
+        fetchAgentMessages(agentId),
+        fetchManagedAgent(agentId),
+      ]);
       setMessages(msgs);
+      setLiveStatus(agent.status);
+      setCurrentActivity(agent.current_activity || '');
     } catch {
       // ignore
     }
   }, [agentId]);
 
   useEffect(() => {
-    loadMessages();
-    // Poll for new messages while the tab is visible (agent responses
-    // arrive asynchronously after a background tick completes).
-    const interval = setInterval(loadMessages, 3000);
+    loadData();
+    const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, [loadMessages]);
+  }, [loadData]);
+
+  useEffect(() => { setLiveStatus(agentStatus); }, [agentStatus]);
 
   // Scroll to bottom only on initial load, not on every poll update.
   const hasScrolled = useRef(false);
@@ -1204,7 +1211,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
     try {
       await sendAgentMessage(agentId, input.trim(), mode);
       setInput('');
-      await loadMessages();
+      await loadData();
     } catch {
       // ignore
     } finally {
@@ -1218,7 +1225,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
     .filter((m) => m.direction === 'user_to_agent' || m.content.trim())
     .reverse();
 
-  const isAgentWorking = agentStatus === 'running';
+  const isAgentWorking = liveStatus === 'running';
   const hasPending = messages.some((m) => m.status === 'pending');
 
   return (
@@ -1249,7 +1256,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
             </div>
           </div>
         ))}
-        {/* Progress indicator while agent is working */}
+        {/* Progress indicator with live activity from the executor */}
         {(isAgentWorking || hasPending) && (
           <div className="flex justify-start">
             <div
@@ -1262,7 +1269,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
             >
               <div className="flex items-center gap-2">
                 <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />
-                {sending ? 'Sending message...' : 'Agent is thinking...'}
+                {sending ? 'Sending message...' : currentActivity || 'Agent is thinking...'}
               </div>
             </div>
           </div>

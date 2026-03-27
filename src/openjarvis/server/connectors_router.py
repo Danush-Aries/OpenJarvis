@@ -86,7 +86,7 @@ def create_connectors_router():
 
     from openjarvis.core.registry import ConnectorRegistry
 
-    router = APIRouter(prefix="/connectors", tags=["connectors"])
+    router = APIRouter(prefix="/v1/connectors", tags=["connectors"])
 
     # ------------------------------------------------------------------
     # Helpers

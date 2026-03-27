@@ -138,3 +138,42 @@ def test_ingest_sources(tmp_path: Path) -> None:
     assert total > 0
     assert store.count() > 0
     store.close()
+
+
+def test_detect_token_sources_finds_connected(tmp_path: Path) -> None:
+    """detect_token_sources finds sources with valid credential files."""
+    from openjarvis.cli.deep_research_setup_cmd import detect_token_sources
+
+    connectors_dir = tmp_path / "connectors"
+    connectors_dir.mkdir()
+    (connectors_dir / "slack.json").write_text('{"token": "xoxb-test"}')
+    (connectors_dir / "notion.json").write_text('{"token": "ntn_test"}')
+
+    sources = detect_token_sources(connectors_dir=connectors_dir)
+    ids = [s["connector_id"] for s in sources]
+    assert "slack" in ids
+    assert "notion" in ids
+
+
+def test_detect_token_sources_skips_empty(tmp_path: Path) -> None:
+    """detect_token_sources skips files with empty or invalid JSON."""
+    from openjarvis.cli.deep_research_setup_cmd import detect_token_sources
+
+    connectors_dir = tmp_path / "connectors"
+    connectors_dir.mkdir()
+    (connectors_dir / "slack.json").write_text("{}")
+    (connectors_dir / "notion.json").write_text("invalid json")
+
+    sources = detect_token_sources(connectors_dir=connectors_dir)
+    assert len(sources) == 0
+
+
+def test_detect_token_sources_empty_dir(tmp_path: Path) -> None:
+    """detect_token_sources returns empty list when no credential files exist."""
+    from openjarvis.cli.deep_research_setup_cmd import detect_token_sources
+
+    connectors_dir = tmp_path / "connectors"
+    connectors_dir.mkdir()
+
+    sources = detect_token_sources(connectors_dir=connectors_dir)
+    assert len(sources) == 0

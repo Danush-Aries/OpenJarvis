@@ -7,6 +7,7 @@ interactive Deep Research chat session with Qwen3.5 via Ollama.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -81,6 +82,119 @@ def detect_local_sources(
 
 
 # ---------------------------------------------------------------------------
+# Token-based source detection
+# ---------------------------------------------------------------------------
+
+_TOKEN_SOURCES = [
+    {
+        "connector_id": "gmail_imap",
+        "display_name": "Gmail (IMAP)",
+        "creds_file": "gmail_imap.json",
+        "prompt_label": "email:app_password",
+    },
+    {
+        "connector_id": "outlook",
+        "display_name": "Outlook / Microsoft 365",
+        "creds_file": "outlook.json",
+        "prompt_label": "email:app_password",
+    },
+    {
+        "connector_id": "slack",
+        "display_name": "Slack",
+        "creds_file": "slack.json",
+        "prompt_label": "Bot token (xoxb-... or xoxe-...)",
+    },
+    {
+        "connector_id": "notion",
+        "display_name": "Notion",
+        "creds_file": "notion.json",
+        "prompt_label": "Integration token (ntn_...)",
+    },
+    {
+        "connector_id": "granola",
+        "display_name": "Granola",
+        "creds_file": "granola.json",
+        "prompt_label": "API key (grn_...)",
+    },
+]
+
+
+def detect_token_sources(
+    *,
+    connectors_dir: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """Return token-based sources that already have valid credentials."""
+    cdir = connectors_dir or (DEFAULT_CONFIG_DIR / "connectors")
+    sources: List[Dict[str, Any]] = []
+
+    for ts in _TOKEN_SOURCES:
+        creds_file = cdir / ts["creds_file"]
+        if not creds_file.exists():
+            continue
+        try:
+            data = json.loads(creds_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not data or not any(v for v in data.values() if v):
+            continue
+        sources.append({
+            "connector_id": ts["connector_id"],
+            "display_name": ts["display_name"],
+            "config": {},
+        })
+
+    return sources
+
+
+def _prompt_connect_sources(console: Console) -> List[Dict[str, Any]]:
+    """Interactively prompt the user to connect token-based sources."""
+    connected: List[Dict[str, Any]] = []
+    cdir = DEFAULT_CONFIG_DIR / "connectors"
+    cdir.mkdir(parents=True, exist_ok=True)
+
+    while True:
+        unconnected = [
+            ts for ts in _TOKEN_SOURCES
+            if not (cdir / ts["creds_file"]).exists()
+        ]
+        if not unconnected:
+            console.print("[dim]All token sources already connected.[/dim]")
+            break
+
+        if not click.confirm("Connect additional sources?", default=False):
+            break
+
+        names = [ts["connector_id"] for ts in unconnected]
+        labels = [
+            f"{ts['display_name']} ({ts['connector_id']})"
+            for ts in unconnected
+        ]
+        console.print("Available:")
+        for label in labels:
+            console.print(f"  {label}")
+
+        choice = click.prompt(
+            "Which source?",
+            type=click.Choice(names, case_sensitive=False),
+        )
+
+        ts = next(t for t in unconnected if t["connector_id"] == choice)
+        token = click.prompt(f"Paste your {ts['prompt_label']}")
+
+        connector = _instantiate_connector(choice, {})
+        connector.handle_callback(token.strip())
+        console.print(f"  [green]{ts['display_name']}: connected![/green]")
+
+        connected.append({
+            "connector_id": choice,
+            "display_name": ts["display_name"],
+            "config": {},
+        })
+
+    return connected
+
+
+# ---------------------------------------------------------------------------
 # Ingestion
 # ---------------------------------------------------------------------------
 
@@ -96,6 +210,21 @@ def _instantiate_connector(connector_id: str, config: Dict[str, Any]) -> Any:
     elif connector_id == "obsidian":
         from openjarvis.connectors.obsidian import ObsidianConnector
         return ObsidianConnector(vault_path=config.get("vault_path", ""))
+    elif connector_id == "gmail_imap":
+        from openjarvis.connectors.gmail_imap import GmailIMAPConnector
+        return GmailIMAPConnector()
+    elif connector_id == "outlook":
+        from openjarvis.connectors.outlook import OutlookConnector
+        return OutlookConnector()
+    elif connector_id == "slack":
+        from openjarvis.connectors.slack_connector import SlackConnector
+        return SlackConnector()
+    elif connector_id == "notion":
+        from openjarvis.connectors.notion import NotionConnector
+        return NotionConnector()
+    elif connector_id == "granola":
+        from openjarvis.connectors.granola import GranolaConnector
+        return GranolaConnector()
     else:
         msg = f"Unknown connector: {connector_id}"
         raise ValueError(msg)
@@ -220,49 +349,71 @@ def deep_research_setup(obsidian_vault: Optional[str], skip_chat: bool) -> None:
     console = Console()
     console.print("\n[bold]Deep Research Setup[/bold]\n")
 
-    # 1. Detect
+    # 1. Detect local sources
     vault_path = Path(obsidian_vault) if obsidian_vault else None
-    sources = detect_local_sources(obsidian_vault_path=vault_path)
+    local_sources = detect_local_sources(obsidian_vault_path=vault_path)
 
-    if not sources:
+    # 2. Detect already-connected token sources
+    token_sources = detect_token_sources()
+
+    all_sources = local_sources + token_sources
+
+    # 3. Show what we found
+    if all_sources:
+        table = Table(title="Detected Sources")
+        table.add_column("Source", style="bold")
+        table.add_column("Type", style="dim")
+        table.add_column("Status", style="green")
+        for src in local_sources:
+            table.add_row(src["display_name"], "local", "ready")
+        for src in token_sources:
+            table.add_row(src["display_name"], "token", "connected")
+        console.print(table)
+        console.print()
+
+    # 4. Offer to connect new token sources
+    newly_connected = _prompt_connect_sources(console)
+    all_sources.extend(newly_connected)
+
+    if not all_sources:
         console.print(
-            "[yellow]No local data sources detected.[/yellow]\n"
+            "[yellow]No data sources detected or connected.[/yellow]\n"
             "On macOS, ensure Full Disk Access is granted in "
             "System Settings > Privacy & Security."
         )
         sys.exit(1)
 
-    # 2. Confirm
-    table = Table(title="Detected Sources")
-    table.add_column("Source", style="bold")
-    table.add_column("Status", style="green")
-    for src in sources:
-        table.add_row(src["display_name"], "ready")
-    console.print(table)
-    console.print()
-
+    # 5. Confirm and ingest
     if not click.confirm("Ingest these sources?", default=True):
         sys.exit(0)
 
-    # 3. Ingest
     db_path = DEFAULT_CONFIG_DIR / "knowledge.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     store = KnowledgeStore(str(db_path))
 
     console.print("\n[bold]Ingesting...[/bold]")
-    for src in sources:
-        connector = _instantiate_connector(src["connector_id"], src["config"])
-        pipeline = IngestionPipeline(store)
-        engine = SyncEngine(pipeline)
-        chunks = engine.sync(connector)
-        console.print(f"  {src['display_name']}: [green]{chunks} chunks[/green]")
+    for src in all_sources:
+        try:
+            connector = _instantiate_connector(
+                src["connector_id"], src["config"],
+            )
+            pipeline = IngestionPipeline(store)
+            engine = SyncEngine(pipeline)
+            chunks = engine.sync(connector)
+            console.print(
+                f"  {src['display_name']}: [green]{chunks} chunks[/green]"
+            )
+        except Exception as exc:  # noqa: BLE001
+            console.print(
+                f"  {src['display_name']}: [red]error: {exc}[/red]"
+            )
 
     total = store.count()
     console.print(
         f"\n[bold green]Done![/bold green] {total} total chunks in {db_path}\n"
     )
 
-    # 4. Chat
+    # 6. Chat
     if skip_chat:
         return
 

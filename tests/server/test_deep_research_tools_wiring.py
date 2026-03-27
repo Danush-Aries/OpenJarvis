@@ -5,9 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
+try:
+    import fastapi  # noqa: F401
+    HAS_FASTAPI = True
+except ImportError:
+    HAS_FASTAPI = False
+
 from openjarvis.connectors.store import KnowledgeStore
 
 
+@pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")
 def test_deep_research_agent_gets_tools(tmp_path: Path) -> None:
     """When knowledge.db exists, returns 4 tools."""
     db_path = tmp_path / "knowledge.db"
@@ -31,6 +40,7 @@ def test_deep_research_agent_gets_tools(tmp_path: Path) -> None:
     store.close()
 
 
+@pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")
 def test_deep_research_tools_returns_empty_when_no_db() -> None:
     """When knowledge.db doesn't exist, returns empty list."""
     from openjarvis.server.agent_manager_routes import _build_deep_research_tools

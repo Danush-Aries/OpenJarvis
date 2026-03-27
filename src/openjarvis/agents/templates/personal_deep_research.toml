@@ -4,6 +4,7 @@ name = "Personal Deep Research"
 description = "Search across your emails, messages, meeting notes, and documents with multi-hop retrieval and cited reports. Uses BM25 keyword search, SQL aggregation, and LM-powered semantic scanning."
 agent_type = "deep_research"
 schedule_type = "manual"
+schedule_value = ""
 tools = ["knowledge_search", "knowledge_sql", "scan_chunks", "think"]
 max_turns = 8
 temperature = 0.3

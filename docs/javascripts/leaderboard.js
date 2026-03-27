@@ -9,27 +9,24 @@
   var allRows = [];
   var currentPage = 0;
 
-  // Claude Opus 4.6 constants — recompute energy and FLOPs from
-  // total_tokens so submitted values cannot be gamed.
-  var CLAUDE_PARAMS_B = 137;
-  var CLAUDE_FLOPS_PER_TOKEN = 4.0e12;
-  var CLAUDE_WH_PER_FLOP = 0.5 / (1000 * CLAUDE_FLOPS_PER_TOKEN);
-  // Max possible $/token: all tokens are output at $25/1M
-  var MAX_DOLLAR_PER_TOKEN = 25.0 / 1e6;
+  // Outlier detection — hide entries with values that are physically
+  // implausible relative to their token count.  Thresholds are ~1000x
+  // above legitimate per-token values to avoid false positives.
+  var MAX_ENERGY_WH_PER_TOKEN = 10;        // legit ≈ 0.001 Wh/tok
+  var MAX_FLOPS_PER_TOKEN = 1e17;           // legit ≈ 1e12 /tok
+  var MAX_DOLLAR_PER_TOKEN = 25.0 / 1e6;   // hard ceiling: $25/1M output
 
-  function recomputeFlops(totalTokens) {
-    var n = Number(totalTokens) || 0;
-    if (n <= 0) return 0;
-    return 2.0 * CLAUDE_PARAMS_B * 1e9 * n;
-  }
-
-  function recomputeEnergy(totalTokens) {
-    return recomputeFlops(totalTokens) * CLAUDE_WH_PER_FLOP;
-  }
-
-  function clampDollars(dollarSavings, totalTokens) {
-    var max = (Number(totalTokens) || 0) * MAX_DOLLAR_PER_TOKEN;
-    return Math.min(Number(dollarSavings) || 0, max);
+  function isOutlier(row) {
+    var tokens = Number(row.total_tokens) || 0;
+    if (tokens <= 0) return false;
+    var energy = Number(row.energy_wh_saved) || 0;
+    var flops = Number(row.flops_saved) || 0;
+    var dollars = Number(row.dollar_savings) || 0;
+    return (
+      energy / tokens > MAX_ENERGY_WH_PER_TOKEN ||
+      flops / tokens > MAX_FLOPS_PER_TOKEN ||
+      dollars / tokens > MAX_DOLLAR_PER_TOKEN
+    );
   }
 
   function escapeHtml(s) {
@@ -65,19 +62,15 @@
       var medal =
         rank === 1 ? "\uD83E\uDD47" : rank === 2 ? "\uD83E\uDD48" : rank === 3 ? "\uD83E\uDD49" : "";
       var row = pageRows[j];
-      var tokens = Number(row.total_tokens || 0);
-      var dollars = clampDollars(row.dollar_savings, tokens);
-      var flops = recomputeFlops(tokens);
-      var energyWh = recomputeEnergy(tokens);
       html +=
         "<tr>" +
         '<td><span class="lb-rank' + rankClass + '">' + (medal || rank) + "</span></td>" +
         '<td class="lb-name">' + escapeHtml(row.display_name) + "</td>" +
-        '<td class="lb-number">$' + dollars.toFixed(4) + "</td>" +
-        '<td class="lb-number">' + energyWh.toFixed(2) + "</td>" +
-        '<td class="lb-number">' + fmtLarge(flops) + "</td>" +
+        '<td class="lb-number">$' + Number(row.dollar_savings || 0).toFixed(4) + "</td>" +
+        '<td class="lb-number">' + Number(row.energy_wh_saved || 0).toFixed(2) + "</td>" +
+        '<td class="lb-number">' + fmtLarge(Number(row.flops_saved || 0)) + "</td>" +
         '<td class="lb-number">' + Number(row.total_calls || 0).toLocaleString() + "</td>" +
-        '<td class="lb-number">' + tokens.toLocaleString() + "</td>" +
+        '<td class="lb-number">' + Number(row.total_tokens || 0).toLocaleString() + "</td>" +
         "</tr>";
     }
     tbody.innerHTML = html;
@@ -144,18 +137,17 @@
           return;
         }
 
-        allRows = rows;
+        allRows = rows.filter(function (r) { return !isOutlier(r); });
         currentPage = 0;
 
-        var totalMembers = rows.length;
+        var totalMembers = allRows.length;
         var totalDollars = 0;
         var totalRequests = 0;
         var totalTokens = 0;
-        for (var i = 0; i < rows.length; i++) {
-          var t = Number(rows[i].total_tokens || 0);
-          totalDollars += clampDollars(rows[i].dollar_savings, t);
-          totalRequests += Number(rows[i].total_calls || 0);
-          totalTokens += t;
+        for (var i = 0; i < allRows.length; i++) {
+          totalDollars += Number(allRows[i].dollar_savings || 0);
+          totalRequests += Number(allRows[i].total_calls || 0);
+          totalTokens += Number(allRows[i].total_tokens || 0);
         }
 
         var elMembers = document.getElementById("stat-members");

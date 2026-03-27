@@ -152,7 +152,30 @@ class DeepResearchAgent(ToolUsingAgent):
 
             # No tool calls -- this is the final answer
             if not tool_calls_raw:
+                # If content is empty but we have prior tool results,
+                # force one more generation without tools to synthesize
+                if not content.strip() and all_tool_results:
+                    messages.append(
+                        Message(role=Role.ASSISTANT, content=content)
+                    )
+                    messages.append(
+                        Message(
+                            role=Role.USER,
+                            content=(
+                                "Please write your final research report "
+                                "based on everything you found. Cite sources."
+                            ),
+                        )
+                    )
+                    synth = self._generate(messages)
+                    content = synth.get("content", "")
+                    u = synth.get("usage", {})
+                    for k in total_usage:
+                        total_usage[k] += u.get(k, 0)
+
                 self._emit_turn_end(turns=turns)
+                sources = self._extract_sources(all_tool_results)
+                total_usage["sources"] = sources
                 return AgentResult(
                     content=content,
                     tool_results=all_tool_results,

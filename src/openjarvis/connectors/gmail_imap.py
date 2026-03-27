@@ -83,6 +83,7 @@ class GmailIMAPConnector(BaseConnector):
     connector_id = "gmail_imap"
     display_name = "Gmail (IMAP)"
     auth_type = "oauth"  # Reuses credential storage pattern
+    _default_imap_host = "imap.gmail.com"
 
     def __init__(
         self,
@@ -90,11 +91,13 @@ class GmailIMAPConnector(BaseConnector):
         app_password: str = "",
         credentials_path: str = "",
         *,
+        imap_host: str = "",
         max_messages: int = 500,
     ) -> None:
         self._email = email_address
         self._password = app_password
         self._credentials_path = credentials_path or _DEFAULT_CREDENTIALS_PATH
+        self._imap_host = imap_host or self._default_imap_host
         self._max_messages = max_messages
         self._items_synced = 0
         self._items_total = 0
@@ -144,7 +147,7 @@ class GmailIMAPConnector(BaseConnector):
         if not em or not pw:
             return
 
-        imap = imaplib.IMAP4_SSL("imap.gmail.com")
+        imap = imaplib.IMAP4_SSL(self._imap_host)
         try:
             imap.login(em, pw)
         except imaplib.IMAP4.error as exc:

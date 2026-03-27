@@ -1549,29 +1549,10 @@ export function AgentsPage() {
               </div>
             </div>
 
-            {/* Usage stats */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Total Queries', value: String(selectedAgent.total_runs ?? 0) },
-                { label: 'Input Tokens', value: String(selectedAgent.input_tokens ?? 0) },
-                { label: 'Output Tokens', value: String(selectedAgent.output_tokens ?? 0) },
-              ].map(({ label, value }) => (
-                <div
-                  key={label}
-                  className="p-2 rounded-lg text-center"
-                  style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
-                >
-                  <p className="text-lg font-bold leading-tight" style={{ color: 'var(--color-text)' }}>{value}</p>
-                  <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>{label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Per-agent savings */}
+            {/* Usage stats + savings — single compact row */}
             {(() => {
               const inTok = selectedAgent.input_tokens ?? 0;
               const outTok = selectedAgent.output_tokens ?? 0;
-              if (inTok + outTok === 0) return null;
               const modelName = (selectedAgent.config?.model as string) || '';
               const paramMatch = modelName.match(/:(\d+(?:\.\d+)?)b/i);
               const paramsB = paramMatch ? parseFloat(paramMatch[1]) : 9;
@@ -1584,35 +1565,50 @@ export function AgentsPage() {
               const energyWh = (inTok + outTok) / 1000 * 0.4;
               const energyKj = energyWh * 3.6;
               const fmtFlops = flops >= 1e15 ? `${(flops / 1e15).toFixed(1)} PFLOPs` : `${(flops / 1e12).toFixed(1)} TFLOPs`;
-              return (
-                <div>
-                  <h3 className="text-sm font-semibold mb-1.5" style={{ color: 'var(--color-text)' }}>
-                    Cloud Savings for Agent
-                  </h3>
-                  <div className="flex gap-2">
-                    <div className="p-2 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
-                      <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Compute</p>
-                      <p className="text-sm font-semibold" style={{ color: '#22c55e' }}>{fmtFlops}</p>
-                    </div>
-                    <div className="p-2 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
-                      <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Energy</p>
-                      <p className="text-sm font-semibold" style={{ color: '#22c55e' }}>{energyKj.toFixed(2)} kJ</p>
-                    </div>
-                    <div className="p-2 rounded-lg flex-1" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
-                      <p className="text-xs mb-0.5" style={{ color: 'var(--color-text-tertiary)' }}>Dollar Savings</p>
-                      {providers.map((p) => {
-                        const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
-                        return (
-                          <div key={p.label} className="flex justify-between text-xs leading-snug">
-                            <span style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</span>
-                            <span className="font-semibold" style={{ color: '#22c55e' }}>${cost.toFixed(4)}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+              const hasSavings = inTok + outTok > 0;
+              return (<>
+                <div className="flex gap-2 flex-wrap">
+                  <div className="px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                    <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{selectedAgent.total_runs ?? 0}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Total Queries</p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                    <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{inTok}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Input Tokens</p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                    <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{outTok}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Output Tokens</p>
                   </div>
                 </div>
-              );
+                {hasSavings && (
+                  <div>
+                    <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text)' }}>Cloud Savings for Agent</h3>
+                    <div className="flex gap-2 flex-wrap">
+                      <div className="px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                        <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Compute</p>
+                        <p className="text-sm font-semibold" style={{ color: '#22c55e' }}>{fmtFlops}</p>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                        <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Energy</p>
+                        <p className="text-sm font-semibold" style={{ color: '#22c55e' }}>{energyKj.toFixed(2)} kJ</p>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                        <p className="text-xs mb-0.5" style={{ color: 'var(--color-text-tertiary)' }}>Dollar Savings</p>
+                        {providers.map((p) => {
+                          const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
+                          return (
+                            <div key={p.label} className="flex gap-3 text-xs leading-snug">
+                              <span style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</span>
+                              <span className="font-semibold" style={{ color: '#22c55e' }}>${cost.toFixed(4)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>);
             })()}
 
             {/* Channels summary */}

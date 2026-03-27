@@ -1556,49 +1556,47 @@ export function AgentsPage() {
               const inTok = selectedAgent.input_tokens ?? 0;
               const outTok = selectedAgent.output_tokens ?? 0;
               if (inTok + outTok === 0) return null;
-              // Estimate FLOPs: 2 * params * tokens (assume 9B model as reference)
               const modelName = (selectedAgent.config?.model as string) || '';
               const paramMatch = modelName.match(/:(\d+(?:\.\d+)?)b/i);
               const paramsB = paramMatch ? parseFloat(paramMatch[1]) : 9;
               const flops = 2 * paramsB * 1e9 * (inTok + outTok);
-              // Cloud pricing per 1M tokens (input/output)
               const providers = [
                 { label: 'GPT-5.3', inPer1M: 2.0, outPer1M: 10.0 },
                 { label: 'Claude Opus 4.6', inPer1M: 5.0, outPer1M: 25.0 },
                 { label: 'Gemini 3.1 Pro', inPer1M: 2.0, outPer1M: 12.0 },
               ];
-              // Energy: ~0.4 Wh per 1k tokens (cloud average)
               const energyWh = (inTok + outTok) / 1000 * 0.4;
               const energyKj = energyWh * 3.6;
               const fmtFlops = flops >= 1e15 ? `${(flops / 1e15).toFixed(1)} PFLOPs` : `${(flops / 1e12).toFixed(1)} TFLOPs`;
               return (
-                <div
-                  className="p-3 rounded-lg"
-                  style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
-                >
+                <div>
                   <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
                     Cloud Savings for Agent
                   </h3>
-                  <div className="flex gap-4 text-xs mb-2">
-                    <div>
-                      <span style={{ color: 'var(--color-text-tertiary)' }}>FLOPs: </span>
-                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>{fmtFlops}</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Compute */}
+                    <div className="p-3 rounded-lg text-center" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                      <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Compute</p>
+                      <p className="text-base font-semibold" style={{ color: '#22c55e' }}>{fmtFlops}</p>
                     </div>
-                    <div>
-                      <span style={{ color: 'var(--color-text-tertiary)' }}>Energy: </span>
-                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>{energyKj.toFixed(2)} kJ</span>
+                    {/* Energy */}
+                    <div className="p-3 rounded-lg text-center" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                      <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Energy</p>
+                      <p className="text-base font-semibold" style={{ color: '#22c55e' }}>{energyKj.toFixed(2)} kJ</p>
                     </div>
-                  </div>
-                  <div className="flex gap-3 text-xs">
-                    {providers.map((p) => {
-                      const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
-                      return (
-                        <div key={p.label}>
-                          <span style={{ color: 'var(--color-text-tertiary)' }}>{p.label}: </span>
-                          <span className="font-semibold" style={{ color: '#22c55e' }}>${cost.toFixed(4)} saved</span>
-                        </div>
-                      );
-                    })}
+                    {/* Dollar savings */}
+                    <div className="p-3 rounded-lg" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                      <p className="text-xs mb-1" style={{ color: 'var(--color-text-tertiary)' }}>Dollar Savings</p>
+                      {providers.map((p) => {
+                        const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
+                        return (
+                          <div key={p.label} className="flex justify-between text-xs">
+                            <span style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</span>
+                            <span className="font-semibold" style={{ color: '#22c55e' }}>${cost.toFixed(4)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               );

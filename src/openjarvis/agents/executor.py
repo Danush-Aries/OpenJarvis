@@ -301,14 +301,21 @@ class AgentExecutor:
         )
 
         # Build input from instruction + summary_memory + pending messages
+        import datetime
+
+        today = datetime.date.today().strftime("%A, %B %d, %Y")
         instruction = config.get("instruction", "")
         memory = agent.get("summary_memory", "")
         if instruction:
-            input_text = f"Standing instruction: {instruction}"
+            input_text = (
+                f"Current date: {today}\n\n"
+                f"Standing instruction: {instruction}"
+            )
             if memory:
                 input_text += f"\n\nPrevious context: {memory}"
         else:
-            input_text = memory or "Continue your assigned task."
+            base = memory or "Continue your assigned task."
+            input_text = f"Current date: {today}\n\n{base}"
         pending = self._manager.get_pending_messages(agent["id"])
         if pending:
             user_msgs = "\n".join(f"User: {m['content']}" for m in pending)

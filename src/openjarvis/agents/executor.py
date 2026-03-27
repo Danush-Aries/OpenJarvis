@@ -240,15 +240,10 @@ class AgentExecutor:
                 pass  # Fall back to configured model
 
         # Construct agent instance (BaseAgent requires engine, model as positional args)
-        # Append /no_think to suppress Qwen3.5 extended thinking that
-        # can consume all tokens and produce empty visible output.
-        sys_prompt = config.get("system_prompt", "") or ""
-        if sys_prompt and "/no_think" not in sys_prompt:
-            sys_prompt = sys_prompt.rstrip() + "\n/no_think"
         agent_instance = agent_cls(
             engine,
             model,
-            system_prompt=sys_prompt or None,
+            system_prompt=config.get("system_prompt"),
             tools=[],
         )
 
@@ -411,7 +406,11 @@ class AgentExecutor:
 
             # Accumulate budget metrics from AgentResult metadata
             if result:
-                tokens = result.metadata.get("tokens_used", 0)
+                tokens = (
+                    result.metadata.get("total_tokens")
+                    or result.metadata.get("tokens_used")
+                    or 0
+                )
                 cost = result.metadata.get("cost", 0.0)
                 budget_kwargs: dict[str, Any] = {"stall_retries": 0}
                 if tokens > 0:

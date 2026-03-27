@@ -78,37 +78,27 @@ class _LightweightSystem:
 def _make_lightweight_system(
     engine: Any, model: str, config: Any = None,
 ) -> _LightweightSystem:
-    """Build a minimal system using a plain engine for the given model.
+    """Build a minimal system with a plain OllamaEngine.
 
     The server's ``app.state.engine`` is heavily wrapped
-    (MultiEngine → InstrumentedEngine → GuardrailsEngine) and can
-    return empty content when reused from a background thread.
-    Instead, create a fresh OllamaEngine pointed at the same backend.
+    (MultiEngine -> InstrumentedEngine -> GuardrailsEngine) and can
+    return empty content from background threads.  Create a fresh
+    OllamaEngine directly (no health checks or model discovery that
+    could interfere with in-flight Ollama requests).
     """
     try:
-        from openjarvis.core.config import load_config
-        from openjarvis.engine._discovery import get_engine
+        from openjarvis.engine.ollama import OllamaEngine
 
-        cfg = config if config is not None else load_config()
-        resolved = get_engine(cfg)
-        if resolved is not None:
-            engine_key, plain_engine = resolved
-            logger.info(
-                "Lightweight system: fresh %s engine (key=%s), "
-                "model=%s",
-                type(plain_engine).__name__, engine_key, model,
-            )
-            return _LightweightSystem(plain_engine, model, cfg)
-    except Exception as exc:
-        logger.warning(
-            "Failed to create fresh engine, falling back to "
-            "server engine: %s", exc,
-        )
-    # Fallback to the (wrapped) server engine
-    logger.warning(
-        "Using wrapped server engine %s — may return empty content",
-        type(engine).__name__,
-    )
+        cfg = config
+        if cfg is None:
+            from openjarvis.core.config import load_config
+
+            cfg = load_config()
+        host = cfg.engine.ollama.host if cfg else ""
+        plain_engine = OllamaEngine(host=host) if host else OllamaEngine()
+        return _LightweightSystem(plain_engine, model, cfg)
+    except Exception:
+        pass
     return _LightweightSystem(engine, model, config)
 
 

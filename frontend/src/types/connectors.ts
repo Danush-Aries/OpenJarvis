@@ -27,6 +27,7 @@ export interface ConnectorInfo {
   connected: boolean;
   auth_url?: string;
   mcp_tools?: string[];
+  chunks?: number;
 }
 
 export interface SyncStatus {

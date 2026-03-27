@@ -82,8 +82,8 @@ def _make_lightweight_system(
 
     The server's ``app.state.engine`` is heavily wrapped
     (MultiEngine → InstrumentedEngine → GuardrailsEngine) and can
-    hang when reused from a background thread.  Instead, create a
-    fresh OllamaEngine pointed at the same backend.
+    return empty content when reused from a background thread.
+    Instead, create a fresh OllamaEngine pointed at the same backend.
     """
     try:
         from openjarvis.core.config import load_config
@@ -92,11 +92,23 @@ def _make_lightweight_system(
         cfg = config if config is not None else load_config()
         resolved = get_engine(cfg)
         if resolved is not None:
-            _, plain_engine = resolved
+            engine_key, plain_engine = resolved
+            logger.info(
+                "Lightweight system: fresh %s engine (key=%s), "
+                "model=%s",
+                type(plain_engine).__name__, engine_key, model,
+            )
             return _LightweightSystem(plain_engine, model, cfg)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "Failed to create fresh engine, falling back to "
+            "server engine: %s", exc,
+        )
     # Fallback to the (wrapped) server engine
+    logger.warning(
+        "Using wrapped server engine %s — may return empty content",
+        type(engine).__name__,
+    )
     return _LightweightSystem(engine, model, config)
 
 

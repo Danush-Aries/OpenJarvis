@@ -231,10 +231,15 @@ class AgentExecutor:
                 pass  # Fall back to configured model
 
         # Construct agent instance (BaseAgent requires engine, model as positional args)
+        # Append /no_think to suppress Qwen3.5 extended thinking that
+        # can consume all tokens and produce empty visible output.
+        sys_prompt = config.get("system_prompt", "") or ""
+        if sys_prompt and "/no_think" not in sys_prompt:
+            sys_prompt = sys_prompt.rstrip() + "\n/no_think"
         agent_instance = agent_cls(
             engine,
             model,
-            system_prompt=config.get("system_prompt"),
+            system_prompt=sys_prompt or None,
             tools=[],
         )
 
@@ -320,6 +325,16 @@ class AgentExecutor:
         )
         _t0 = time.time()
         result = agent_instance.run(input_text, context=agent_ctx)
+
+        # Retry once if the model returned empty content (common with
+        # Qwen3.5 thinking mode consuming all tokens).
+        if not (result.content or "").strip():
+            logger.warning(
+                "Agent %s: empty content, retrying once",
+                agent["name"],
+            )
+            result = agent_instance.run(input_text, context=agent_ctx)
+
         _elapsed = time.time() - _t0
         logger.info(
             "Agent %s: agent.run() completed in %.1fs, "

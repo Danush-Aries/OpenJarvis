@@ -51,12 +51,14 @@ class ChannelBridge:
         bus: EventBus,
         system: Any = None,
         agent_manager: Any = None,
+        deep_research_agent: Any = None,
     ) -> None:
         self._channels = channels
         self._session_store = session_store
         self._bus = bus
         self._system = system
         self._agent_manager = agent_manager
+        self._deep_research_agent = deep_research_agent
         self._notification_timestamps: Dict[str, float] = {}
         self._subscribe_notifications()
 
@@ -278,11 +280,29 @@ class ChannelBridge:
                 f"Current message: {content}"
             )
 
-        try:
-            result = self._system.ask(query)
-            response_text = result.get("content", str(result))
-        except Exception:
-            logger.exception("Error in JarvisSystem.ask()")
+        # Try DeepResearchAgent first
+        if self._deep_research_agent is not None:
+            try:
+                result = self._deep_research_agent.run(content)
+                response_text = result.content or "No results found."
+            except Exception as exc:
+                logger.error("DeepResearch agent failed: %s", exc)
+                response_text = f"Research error: {exc}"
+        elif self._system is not None:
+            try:
+                result = self._system.ask(query)
+                response_text = result.get("content", str(result))
+            except Exception:
+                logger.exception("Error in JarvisSystem.ask()")
+                error_msg = (
+                    "Sorry, I couldn't process that right now. "
+                    "Try again in a moment."
+                )
+                self._session_store.append_message(
+                    sender_id, channel_type, "assistant", error_msg
+                )
+                return error_msg
+        else:
             error_msg = (
                 "Sorry, I couldn't process that right now. "
                 "Try again in a moment."

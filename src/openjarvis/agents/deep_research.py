@@ -217,7 +217,33 @@ class DeepResearchAgent(ToolUsingAgent):
                     )
                 )
 
-        # Max turns exceeded
+        # Max turns exceeded — do one final generation WITHOUT tools to force synthesis
+        messages.append(
+            Message(
+                role=Role.USER,
+                content=(
+                    "You have used all your search turns. Based on everything "
+                    "you have found so far, write your final research report now. "
+                    "Cite the sources you found."
+                ),
+            )
+        )
+        final = self._generate(messages)
+        final_content = final.get("content", "")
+        usage = final.get("usage", {})
+        for k in total_usage:
+            total_usage[k] += usage.get(k, 0)
+
+        if final_content:
+            sources = self._extract_sources(all_tool_results)
+            total_usage["sources"] = sources
+            return AgentResult(
+                content=final_content,
+                tool_results=all_tool_results,
+                turns=turns,
+                metadata=total_usage,
+            )
+
         return self._max_turns_result(all_tool_results, turns, metadata=total_usage)
 
 

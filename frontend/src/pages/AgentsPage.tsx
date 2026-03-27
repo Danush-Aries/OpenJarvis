@@ -856,6 +856,7 @@ function AgentInstructionSection({ agent, onAgentUpdated }: { agent: ManagedAgen
 
 function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAgentUpdated: () => void }) {
   const [editingModel, setEditingModel] = useState(false);
+  const [changingModel, setChangingModel] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const currentModel = (agent.config?.model as string) || '(default)';
 
@@ -868,34 +869,43 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
   }
 
   async function changeModel(newModel: string) {
+    setChangingModel(true);
     try {
       const newConfig = { ...(agent.config || {}), model: newModel };
       await updateManagedAgent(agent.id, { config: newConfig });
       onAgentUpdated();
+      toast.success(`Model changed to ${newModel}`);
     } catch { /* ignore */ }
     setEditingModel(false);
+    setChangingModel(false);
   }
 
   const rows: [string, React.ReactNode][] = [
     ['Intelligence', editingModel ? (
-      <select
-        autoFocus
-        defaultValue={currentModel}
-        onChange={(e) => changeModel(e.target.value)}
-        onBlur={() => setEditingModel(false)}
-        className="text-sm rounded px-1 py-0.5"
-        style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-      >
-        {models.map((m) => <option key={m} value={m}>{m}</option>)}
-      </select>
+      changingModel ? (
+        <span className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>Switching model...</span>
+      ) : (
+        <select
+          autoFocus
+          defaultValue={currentModel}
+          onChange={(e) => changeModel(e.target.value)}
+          onBlur={() => setEditingModel(false)}
+          className="text-sm rounded px-1 py-0.5"
+          style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+        >
+          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      )
     ) : (
-      <span
-        onClick={startEditingModel}
-        className="cursor-pointer underline decoration-dotted"
-        style={{ color: 'var(--color-accent)' }}
-        title="Click to change model"
-      >
-        {currentModel}
+      <span className="flex items-center gap-2">
+        <span style={{ color: 'var(--color-text)' }}>{currentModel}</span>
+        <button
+          onClick={startEditingModel}
+          className="text-xs px-2 py-0.5 rounded cursor-pointer"
+          style={{ color: 'var(--color-accent)', border: '1px solid var(--color-accent)', opacity: 0.8 }}
+        >
+          Change
+        </button>
       </span>
     )],
     ['Agent Type', <span key="at">{agent.agent_type}</span>],
@@ -903,8 +913,6 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
     ['Last Run', <span key="lr">{formatRelativeTime(agent.last_run_at)}</span>],
     ['Budget', <span key="bg">{agent.budget ? formatCost(agent.budget) : 'Unlimited'}</span>],
     ['Learning', <span key="le">{agent.learning_enabled ? 'Enabled' : 'Disabled'}</span>],
-    ['Input Tokens', <span key="it">{String(agent.input_tokens ?? 0)}</span>],
-    ['Output Tokens', <span key="ot">{String(agent.output_tokens ?? 0)}</span>],
   ];
 
   return (
@@ -1259,6 +1267,7 @@ export function AgentsPage() {
   const setManagedAgents = useAppStore((s) => s.setManagedAgents);
   const selectedAgentId = useAppStore((s) => s.selectedAgentId);
   const setSelectedAgentId = useAppStore((s) => s.setSelectedAgentId);
+  const savings = useAppStore((s) => s.savings);
   const [loading, setLoading] = useState(true);
   const [agentManagerAvailable, setAgentManagerAvailable] = useState<boolean | null>(null);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
@@ -1492,9 +1501,9 @@ export function AgentsPage() {
             {/* Stat cards — compact row */}
             <div className="grid grid-cols-3 gap-2">
               {[
-                { label: 'Total Runs', value: String(selectedAgent.total_runs ?? 0), icon: Activity, color: '#3b82f6' },
-                { label: 'Success Rate', value: successRate !== null ? `${successRate}%` : '—', icon: Zap, color: '#22c55e' },
-                { label: 'Total Cost', value: formatCost(selectedAgent.total_cost), icon: DollarSign, color: '#f59e0b' },
+                { label: 'Total Queries', value: String(selectedAgent.total_runs ?? 0), icon: Activity, color: '#3b82f6' },
+                { label: 'Input Tokens', value: String(selectedAgent.input_tokens ?? 0), icon: Zap, color: '#22c55e' },
+                { label: 'Output Tokens', value: String(selectedAgent.output_tokens ?? 0), icon: Zap, color: '#f59e0b' },
               ].map(({ label, value, icon: Icon, color }) => (
                 <div
                   key={label}
@@ -1509,6 +1518,27 @@ export function AgentsPage() {
                 </div>
               ))}
             </div>
+
+            {/* Savings summary */}
+            {savings && savings.per_provider && savings.per_provider.length > 0 && (
+              <div
+                className="p-3 rounded-lg"
+                style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
+              >
+                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+                  Cloud Savings (this session)
+                </h3>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  {savings.per_provider.map((p) => (
+                    <div key={p.provider} className="flex flex-col">
+                      <span style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</span>
+                      <span className="font-semibold" style={{ color: '#22c55e' }}>${p.total_cost.toFixed(2)} saved</span>
+                      <span style={{ color: 'var(--color-text-tertiary)' }}>{(p.energy_wh / 1000).toFixed(2)} kWh</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Instruction — separate section */}
             <AgentInstructionSection agent={selectedAgent} onAgentUpdated={refresh} />

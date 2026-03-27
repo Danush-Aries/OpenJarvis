@@ -103,6 +103,19 @@ def _make_lightweight_system(
             cfg = load_config()
         host = cfg.engine.ollama.host if cfg else ""
         plain_engine = OllamaEngine(host=host) if host else OllamaEngine()
+        # Wrap with InstrumentedEngine so agent ticks are recorded
+        # in telemetry (FLOPs, energy, cost savings).
+        try:
+            from openjarvis.core.events import get_event_bus
+            from openjarvis.telemetry.instrumented_engine import (
+                InstrumentedEngine,
+            )
+
+            plain_engine = InstrumentedEngine(
+                plain_engine, get_event_bus(),
+            )
+        except Exception:
+            pass  # telemetry is optional
         return _LightweightSystem(plain_engine, model, cfg)
     except Exception:
         pass

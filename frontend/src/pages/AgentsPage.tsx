@@ -1566,44 +1566,59 @@ export function AgentsPage() {
               const energyKj = energyWh * 3.6;
               const fmtFlops = flops >= 1e15 ? `${(flops / 1e15).toFixed(1)} PFLOPs` : `${(flops / 1e12).toFixed(1)} TFLOPs`;
               const hasSavings = inTok + outTok > 0;
+              const sectionTitle = { fontSize: 11, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 8 };
               return (
                 <div className="p-4 rounded-xl" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
                   <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Cloud Savings for Agent</h3>
-                  <div className="flex gap-5 flex-wrap items-start">
-                    <div>
-                      <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-text)' }}>{selectedAgent.total_runs ?? 0}</p>
-                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Total Queries</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-text)' }}>{inTok.toLocaleString()}</p>
-                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Input Tokens</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-text)' }}>{outTok.toLocaleString()}</p>
-                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Output Tokens</p>
+                  <div className="flex gap-0 flex-wrap items-stretch">
+                    {/* Usage */}
+                    <div className="pr-5">
+                      <div className="flex gap-5">
+                        <div>
+                          <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-text)' }}>{selectedAgent.total_runs ?? 0}</p>
+                          <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Total Queries</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-text)' }}>{inTok.toLocaleString()}</p>
+                          <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Input Tokens</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-text)' }}>{outTok.toLocaleString()}</p>
+                          <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Output Tokens</p>
+                        </div>
+                      </div>
                     </div>
                     {hasSavings && (<>
-                      <div style={{ width: 1, background: 'var(--color-border)', alignSelf: 'stretch', minHeight: 32 }} />
-                      <div>
-                        <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>{fmtFlops}</p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Compute</p>
-                      </div>
-                      <div>
-                        <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>{energyKj.toFixed(2)} kJ</p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Energy</p>
-                      </div>
-                      <div style={{ width: 1, background: 'var(--color-border)', alignSelf: 'stretch', minHeight: 32 }} />
-                      <div className="flex gap-5 flex-wrap items-start">
-                        <p className="text-xs self-center" style={{ color: 'var(--color-text-tertiary)', writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: 1 }}>SAVED vs.</p>
-                      {providers.map((p) => {
-                        const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
-                        return (
-                          <div key={p.label}>
-                            <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>${cost.toFixed(4)}</p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</p>
+                      <div style={{ width: 1, background: 'var(--color-border)' }} />
+                      {/* Local Utilization */}
+                      <div className="px-5">
+                        <p style={sectionTitle}>Local Utilization</p>
+                        <div className="flex gap-5">
+                          <div>
+                            <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>{fmtFlops}</p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Compute</p>
                           </div>
-                        );
-                      })}
+                          <div>
+                            <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>{energyKj.toFixed(2)} kJ</p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Energy</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ width: 1, background: 'var(--color-border)' }} />
+                      {/* Dollars Saved */}
+                      <div className="pl-5">
+                        <p style={sectionTitle}>Dollars Saved vs.</p>
+                        <div className="flex gap-5">
+                          {providers.map((p) => {
+                            const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
+                            return (
+                              <div key={p.label}>
+                                <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>${cost.toFixed(4)}</p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </>)}
                   </div>

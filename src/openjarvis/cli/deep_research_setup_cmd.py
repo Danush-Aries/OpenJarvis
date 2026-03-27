@@ -267,6 +267,9 @@ def _launch_chat(store: KnowledgeStore, console: Console) -> None:
     from openjarvis.connectors.retriever import TwoStageRetriever
     from openjarvis.engine.ollama import OllamaEngine
     from openjarvis.tools.knowledge_search import KnowledgeSearchTool
+    from openjarvis.tools.knowledge_sql import KnowledgeSQLTool
+    from openjarvis.tools.scan_chunks import ScanChunksTool
+    from openjarvis.tools.think import ThinkTool
 
     console.print("\n[bold]Setting up Deep Research agent...[/bold]")
 
@@ -290,20 +293,26 @@ def _launch_chat(store: KnowledgeStore, console: Console) -> None:
             )
             return
 
-    # Retriever + tool
+    # Tools
     retriever = TwoStageRetriever(store)
-    search_tool = KnowledgeSearchTool(retriever=retriever)
+    tools = [
+        KnowledgeSearchTool(retriever=retriever),
+        KnowledgeSQLTool(store=store),
+        ScanChunksTool(store=store, engine=engine, model=_OLLAMA_MODEL),
+        ThinkTool(),
+    ]
 
     # Agent
     agent = DeepResearchAgent(
         engine=engine,
         model=_OLLAMA_MODEL,
-        tools=[search_tool],
+        tools=tools,
         interactive=True,
     )
 
     console.print(
         f"[green]Ready![/green] Using [bold]{_OLLAMA_MODEL}[/bold] via Ollama.\n"
+        "Tools: knowledge_search, knowledge_sql, scan_chunks, think\n"
         "Type your research question. Type [bold]/quit[/bold] to exit.\n"
     )
 

@@ -173,6 +173,6 @@ def test_agent_system_prompt_mentions_research(mock_engine, store):
 def test_agent_defaults():
     """Verify agent_id, default max_turns, temperature, max_tokens."""
     assert DeepResearchAgent.agent_id == "deep_research"
-    assert DeepResearchAgent._default_max_turns == 5
+    assert DeepResearchAgent._default_max_turns == 8
     assert DeepResearchAgent._default_temperature == 0.3
     assert DeepResearchAgent._default_max_tokens == 4096

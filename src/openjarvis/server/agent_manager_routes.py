@@ -1467,14 +1467,14 @@ def create_agent_manager_router(
                         text = _re.sub(r"\n{3,}", "\n\n", text)
                         return text.strip()
 
-                    def _process_queue(say_fn):
+                    def _process_queue(say_fn, thread_ts):
                         """Process queued messages sequentially."""
                         while not _msg_queue.empty():
-                            text = _msg_queue.get()
+                            _text, _ts = _msg_queue.get()
                             _processing.set()
                             if dr_agent:
                                 try:
-                                    result = dr_agent.run(text)
+                                    result = dr_agent.run(_text)
                                     reply = (
                                         result.content
                                         or "No results found."
@@ -1485,7 +1485,10 @@ def create_agent_manager_router(
                                 reply = (
                                     "Agent not available."
                                 )
-                            say_fn(_to_slack_fmt(reply))
+                            say_fn(
+                                text=_to_slack_fmt(reply),
+                                thread_ts=_ts,
+                            )
                             _processing.clear()
 
                     @bolt_app.event("message")
@@ -1494,23 +1497,31 @@ def create_agent_manager_router(
                         if not text:
                             return
 
+                        # Use message ts as thread parent
+                        msg_ts = event.get("ts", "")
+
                         if _processing.is_set():
-                            # Already working on something
-                            _msg_queue.put(text)
+                            _msg_queue.put((text, msg_ts))
                             qsize = _msg_queue.qsize()
                             say(
-                                "Message received! "
-                                f"Message {qsize + 1} in queue"
-                                f" of {qsize + 1}, "
-                                "will respond ASAP"
+                                text=(
+                                    "Message received! "
+                                    f"Message {qsize + 1} in "
+                                    f"queue of {qsize + 1}, "
+                                    "will respond ASAP"
+                                ),
+                                thread_ts=msg_ts,
                             )
                             return
 
                         say(
-                            "Message received! "
-                            "Working on it now..."
+                            text=(
+                                "Message received! "
+                                "Working on it now..."
+                            ),
+                            thread_ts=msg_ts,
                         )
-                        _msg_queue.put(text)
+                        _msg_queue.put((text, msg_ts))
 
                         # Start progress updater
                         _stop_progress = _thr.Event()
@@ -1524,8 +1535,11 @@ def create_agent_manager_router(
                                 mins += 1
                                 if _processing.is_set():
                                     say(
-                                        "Still working! "
-                                        "Will reply ASAP"
+                                        text=(
+                                            "Still working! "
+                                            "Will reply ASAP"
+                                        ),
+                                        thread_ts=msg_ts,
                                     )
 
                         pt = _thr.Thread(
@@ -1535,7 +1549,7 @@ def create_agent_manager_router(
                         pt.start()
 
                         # Process in current thread
-                        _process_queue(say)
+                        _process_queue(say, msg_ts)
                         _stop_progress.set()
 
                     sm_handler = SocketModeHandler(

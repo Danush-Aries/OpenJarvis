@@ -1040,14 +1040,27 @@ function ChannelsTab({ agentId }: { agentId: string }) {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { loadConnectors(); }, [loadConnectors]);
+  useEffect(() => {
+    loadConnectors();
+    // Poll every 10s to catch background OAuth completions
+    const interval = setInterval(loadConnectors, 10000);
+    return () => clearInterval(interval);
+  }, [loadConnectors]);
 
   const handleConnect = async (id: string, req: ConnectRequest) => {
     setLoading(true);
     try {
       await connectSource(id, req);
       setExpandedId(null);
-      loadConnectors();
+      // Poll for connection status (OAuth flow runs in background thread)
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        await loadConnectors();
+        // Check if this connector is now connected
+        const updated = await listConnectors();
+        const target = updated.find((c) => c.connector_id === id);
+        if (target?.connected) break;
+      }
     } catch {
       // error handling
     } finally {

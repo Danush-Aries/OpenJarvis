@@ -1092,13 +1092,26 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
   const bottomRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Keep a ref of local metadata so polling doesn't overwrite it
+  const localMetaRef = useRef<Map<string, {
+    _elapsed?: string;
+    _toolCalls?: number;
+    _usage?: Record<string, number>;
+    _telemetry?: Record<string, unknown>;
+  }>>(new Map());
+
   const loadData = useCallback(async () => {
     try {
       const [msgs, agent] = await Promise.all([
         fetchAgentMessages(agentId),
         fetchManagedAgent(agentId),
       ]);
-      setMessages(msgs);
+      // Merge server messages with locally-stored metadata
+      const merged: InteractMessage[] = msgs.map((m) => {
+        const meta = localMetaRef.current.get(m.content?.slice(0, 100) || '');
+        return meta ? { ...m, ...meta } : m;
+      });
+      setMessages(merged);
       setLiveStatus(agent.status);
       setCurrentActivity(agent.current_activity || '');
     } catch {
@@ -1188,15 +1201,20 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       // Add the agent's response as a local bubble immediately
       if (response && response.content) {
+        const meta = {
+          _elapsed: elapsed,
+          _toolCalls: toolCount,
+          _usage: responseUsage,
+          _telemetry: responseTelemetry,
+        };
+        // Store metadata keyed by content prefix so polling preserves it
+        localMetaRef.current.set(response.content.slice(0, 100), meta);
         setMessages((prev) => [
           {
             ...response,
             id: response.id || `response-${Date.now()}`,
             direction: 'agent_to_user' as const,
-            _elapsed: elapsed,
-            _toolCalls: toolCount,
-            _usage: responseUsage,
-            _telemetry: responseTelemetry,
+            ...meta,
           },
           ...prev,
         ]);

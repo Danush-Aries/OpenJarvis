@@ -466,6 +466,48 @@ def _get_mcp_tools(app_state: Any) -> Tuple[List[Dict[str, Any]], Dict[str, Any]
     return openai_tools, adapters_by_name
 
 
+def _sse_chunk(chunk_id: str, model: str, content: str) -> str:
+    """Build a single SSE content chunk."""
+    import json as _json
+
+    data = {
+        "id": chunk_id,
+        "object": "chat.completion.chunk",
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {"content": content},
+                "finish_reason": None,
+            }
+        ],
+    }
+    return f"data: {_json.dumps(data)}\n\n"
+
+
+def _tool_progress_label(tool_name: str, args: str) -> str:
+    """Human-readable label for a tool call in progress."""
+    labels = {
+        "knowledge_search": "Searching your knowledge base",
+        "knowledge_sql": "Querying data with SQL",
+        "scan_chunks": "Scanning documents for semantic matches",
+        "think": "Planning next step",
+    }
+    label = labels.get(tool_name, f"Using {tool_name}")
+    if args and tool_name != "think":
+        # Try to extract the query/question from args JSON
+        try:
+            import json as _json
+
+            parsed = _json.loads(args)
+            q = parsed.get("query") or parsed.get("question") or ""
+            if q:
+                label += f' — "{q[:50]}"'
+        except Exception:
+            pass
+    return label
+
+
 async def _stream_managed_agent(
     *,
     manager: AgentManager,
@@ -534,11 +576,16 @@ async def _stream_managed_agent(
         if dr_tools:
 
             async def generate_deep_research():
-                """Run DeepResearchAgent in a thread, stream result as SSE."""
+                """Run DeepResearchAgent in thread, stream progress + result."""
                 import asyncio
+                import queue
+                import threading
 
                 from openjarvis.agents.deep_research import DeepResearchAgent
 
+                progress_q: queue.Queue = queue.Queue()
+
+                # Patch the agent's tool executor to emit progress
                 dr_agent = DeepResearchAgent(
                     engine=engine,
                     model=model,
@@ -547,48 +594,108 @@ async def _stream_managed_agent(
                     temperature=float(config.get("temperature", 0.3)),
                 )
 
-                # Run agent in background thread
-                result = await asyncio.to_thread(dr_agent.run, user_content)
-                content = result.content or "No results found."
+                # Wrap the executor to capture tool calls
+                original_execute = dr_agent._executor.execute
 
-                # Stream the result word-by-word for SSE
-                words = content.split(" ")
-                for i, word in enumerate(words):
-                    token = word if i == 0 else " " + word
-                    chunk_data = {
-                        "id": chunk_id,
-                        "object": "chat.completion.chunk",
-                        "model": model,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {"content": token},
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                def _tracked_execute(tc):
+                    tool_name = tc.name
+                    args_str = (
+                        tc.arguments[:80] if tc.arguments else ""
+                    )
+                    progress_q.put({
+                        "type": "tool_start",
+                        "tool": tool_name,
+                        "args": args_str,
+                    })
+                    result = original_execute(tc)
+                    progress_q.put({
+                        "type": "tool_end",
+                        "tool": tool_name,
+                        "success": result.success,
+                    })
+                    return result
 
-                # Final chunk
-                finish_data = {
-                    "id": chunk_id,
-                    "object": "chat.completion.chunk",
-                    "model": model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "stop",
+                dr_agent._executor.execute = _tracked_execute
+
+                def _run_agent():
+                    try:
+                        result = dr_agent.run(user_content)
+                        content = (
+                            result.content or "No results found."
+                        )
+                        progress_q.put({
+                            "type": "done",
+                            "content": content,
+                        })
+                    except Exception as exc:
+                        progress_q.put({
+                            "type": "error",
+                            "content": f"Error: {exc}",
+                        })
+
+                thread = threading.Thread(target=_run_agent, daemon=True)
+                thread.start()
+
+                # Stream progress events and final content
+                while True:
+                    try:
+                        event = await asyncio.to_thread(progress_q.get, timeout=120)
+                    except Exception:
+                        # Timeout
+                        yield _sse_chunk(chunk_id, model, "Agent timed out.")
+                        break
+
+                    if event["type"] == "tool_start":
+                        tool = event["tool"]
+                        args = event.get("args", "")
+                        label = _tool_progress_label(tool, args)
+                        progress_data = {
+                            "id": chunk_id,
+                            "object": "chat.completion.chunk",
+                            "model": model,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {},
+                                    "finish_reason": None,
+                                    "tool_progress": label,
+                                }
+                            ],
                         }
-                    ],
-                }
-                yield f"data: {json.dumps(finish_data)}\n\n"
-                yield "data: [DONE]\n\n"
+                        yield f"data: {json.dumps(progress_data)}\n\n"
 
-                # Persist the response
-                manager.store_agent_response(
-                    agent_id, message_id, content,
-                )
+                    elif event["type"] == "tool_end":
+                        pass  # Could emit completion signal
+
+                    elif event["type"] in ("done", "error"):
+                        content = event["content"]
+                        # Stream content word-by-word
+                        words = content.split(" ")
+                        for i, word in enumerate(words):
+                            token = word if i == 0 else " " + word
+                            yield _sse_chunk(chunk_id, model, token)
+
+                        # Final chunk
+                        finish_data = {
+                            "id": chunk_id,
+                            "object": "chat.completion.chunk",
+                            "model": model,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {},
+                                    "finish_reason": "stop",
+                                }
+                            ],
+                        }
+                        yield f"data: {json.dumps(finish_data)}\n\n"
+                        yield "data: [DONE]\n\n"
+
+                        # Persist
+                        manager.store_agent_response(
+                            agent_id, message_id, content,
+                        )
+                        break
 
             return StreamingResponse(
                 generate_deep_research(),

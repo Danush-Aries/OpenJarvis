@@ -502,7 +502,16 @@ export async function fetchAgentState(agentId: string): Promise<{
   return res.json();
 }
 
-export async function sendAgentMessage(agentId: string, content: string, mode: 'immediate' | 'queued' = 'queued'): Promise<AgentMessage> {
+export async function sendAgentMessage(
+  agentId: string,
+  content: string,
+  mode: 'immediate' | 'queued' = 'queued',
+  callbacks?: {
+    onProgress?: (label: string) => void;
+    onContentDelta?: (delta: string, fullContent: string) => void;
+    onDone?: (fullContent: string) => void;
+  },
+): Promise<AgentMessage> {
   const res = await fetch(`${getBase()}/v1/managed-agents/${agentId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -516,23 +525,35 @@ export async function sendAgentMessage(agentId: string, content: string, mode: '
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
+    let buffer = '';
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        for (const line of text.split('\n')) {
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
           if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
           try {
             const chunk = JSON.parse(line.slice(6));
+            // Check for tool progress events
+            const toolProgress = chunk.choices?.[0]?.tool_progress;
+            if (toolProgress) {
+              callbacks?.onProgress?.(toolProgress);
+            }
             const delta = chunk.choices?.[0]?.delta?.content || '';
-            fullContent += delta;
+            if (delta) {
+              fullContent += delta;
+              callbacks?.onContentDelta?.(delta, fullContent);
+            }
           } catch { /* skip malformed chunks */ }
         }
       }
     } catch { /* stream ended */ }
 
-    // Return a synthetic message with the full content
+    callbacks?.onDone?.(fullContent);
+
     return {
       id: '',
       agent_id: agentId,

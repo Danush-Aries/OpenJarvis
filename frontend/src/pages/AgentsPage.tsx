@@ -859,9 +859,13 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [waitingForResponse, setWaitingForResponse] = useState(false);
+  const [progressLabel, setProgressLabel] = useState('');
+  const [streamingContent, setStreamingContent] = useState('');
   const [currentActivity, setCurrentActivity] = useState('');
   const [liveStatus, setLiveStatus] = useState(agentStatus);
+  const [streamElapsedMs, setStreamElapsedMs] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -885,6 +889,16 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
 
   useEffect(() => { setLiveStatus(agentStatus); }, [agentStatus]);
 
+  // Clean up elapsed-time timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
   // Scroll to bottom only on initial load, not on every poll update.
   const hasScrolled = useRef(false);
   useEffect(() => {
@@ -893,6 +907,13 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
       hasScrolled.current = true;
     }
   }, [messages]);
+
+  // Scroll to bottom when streaming content updates
+  useEffect(() => {
+    if (streamingContent) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [streamingContent]);
 
   async function handleSend(mode: 'immediate' | 'queued') {
     if (!input.trim()) return;
@@ -913,9 +934,25 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
     setMessages((prev) => [localMsg, ...prev]);
     setSending(false);
     setWaitingForResponse(true);
+    setProgressLabel('Initializing agent...');
+    setStreamingContent('');
+
+    // Start elapsed-time timer
+    const startTime = Date.now();
+    setStreamElapsedMs(0);
+    timerRef.current = setInterval(() => {
+      setStreamElapsedMs(Date.now() - startTime);
+    }, 100);
 
     try {
-      const response = await sendAgentMessage(agentId, text, mode);
+      const response = await sendAgentMessage(agentId, text, mode, {
+        onProgress: (label) => setProgressLabel(label),
+        onContentDelta: (_delta, full) => setStreamingContent(full),
+        onDone: () => {
+          // Clear streaming state — final content comes from the response object
+          setStreamingContent('');
+        },
+      });
       // Add the agent's response as a local bubble immediately
       if (response && response.content) {
         setMessages((prev) => [
@@ -933,6 +970,13 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
       // ignore
     } finally {
       setWaitingForResponse(false);
+      setStreamingContent('');
+      setProgressLabel('');
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setStreamElapsedMs(0);
     }
   }
 
@@ -973,8 +1017,8 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
             </div>
           </div>
         ))}
-        {/* Progress indicator */}
-        {(isAgentWorking || hasPending || waitingForResponse || sending) && (
+        {/* Progress indicator — shown when waiting but no streamed content yet, or alongside streaming */}
+        {(isAgentWorking || hasPending || waitingForResponse || sending) && !streamingContent && (
           <div className="flex justify-start">
             <div
               className="px-3 py-2 rounded-lg text-sm"
@@ -989,9 +1033,33 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
                 {sending
                   ? 'Sending message...'
                   : waitingForResponse
-                    ? 'Researching your data — searching, analyzing, writing report...'
+                    ? progressLabel || 'Initializing agent...'
                     : currentActivity || 'Agent is thinking...'}
               </div>
+            </div>
+          </div>
+        )}
+        {/* Streaming content bubble — real-time response as it arrives */}
+        {waitingForResponse && streamingContent && (
+          <div className="flex justify-start">
+            <div
+              className="max-w-[75%] px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            >
+              {progressLabel && (
+                <div className="flex items-center gap-2 mb-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />
+                  {progressLabel}
+                </div>
+              )}
+              <p className="whitespace-pre-wrap">{streamingContent}</p>
+              <p className="text-xs mt-1 opacity-70">
+                {streamElapsedMs > 0 && `${(streamElapsedMs / 1000).toFixed(1)}s elapsed`}
+              </p>
             </div>
           </div>
         )}

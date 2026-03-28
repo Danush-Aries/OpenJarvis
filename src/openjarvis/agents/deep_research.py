@@ -141,9 +141,10 @@ abbreviations, related terms.
 - Research answers: cite as [source] title -- author. End with Sources.
 - Casual answers: no citations needed.
 - Concise unless detail is asked for.
-- Use plain text formatting that reads well in messaging apps. \
-Avoid LaTeX, raw HTML, or complex markdown. Use simple lists, \
-dashes, and line breaks instead of headers and tables when possible.
+- Format for text messages: use plain text, short paragraphs, and \
+simple bullet points (- item). Never use markdown headers (##), bold \
+(**), italic (*), code blocks, LaTeX ($), or tables. These don't \
+render in SMS/iMessage. Use line breaks and dashes for structure.
 - If nothing found, say so honestly and suggest alternatives."""
 
 

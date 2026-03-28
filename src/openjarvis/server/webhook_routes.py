@@ -271,7 +271,6 @@ def create_webhook_router(
 
         def _handle_and_reply() -> None:
             import threading
-            import time as _time
 
             lock = _sendblue_queues["_lock"]
 

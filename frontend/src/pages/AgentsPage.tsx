@@ -26,6 +26,9 @@ import {
   fetchModels,
   updateManagedAgent,
   fetchRecommendedModel,
+  sendblueVerify,
+  sendblueRegisterWebhook,
+  sendblueTest,
 } from '../lib/api';
 import type { AgentTask, ChannelBinding, AgentTemplate, AgentMessage, ManagedAgent, LearningLogEntry, AgentTrace, ToolInfo } from '../lib/api';
 import {
@@ -1759,32 +1762,8 @@ interface MessagingChannelConfig {
 }
 
 const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
-  {
-    type: 'sendblue',
-    name: 'iMessage / SMS',
-    icon: '\uD83D\uDCAC',
-    description: 'Your agent gets its own phone number \u2014 text it via iMessage (blue bubbles!) or SMS',
-    setupSteps: [
-      '1. Sign up at sendblue.co and get your API credentials',
-      '2. In the SendBlue dashboard, copy your API Key ID and API Secret Key',
-      '3. Your account comes with a dedicated phone number \u2014 find it under Lines in the dashboard',
-      '4. Enter all three values below',
-      'After setup, text the phone number from any phone. Your agent responds via iMessage when possible, SMS otherwise.',
-    ],
-    fields: [
-      { key: 'api_key_id', label: 'API Key ID', placeholder: 'Your SendBlue API key ID', required: true },
-      { key: 'api_secret_key', label: 'API Secret Key', placeholder: 'Your SendBlue API secret key', type: 'password', required: true },
-      { key: 'from_number', label: 'SendBlue Phone Number (your agent\u2019s number)', placeholder: '+15551234567', required: true },
-    ],
-    activeLabel: (cfg) => {
-      const num = (cfg.from_number as string) || '';
-      return num ? `iMessage/SMS active on ${num}` : 'SendBlue connected';
-    },
-    howToUse: (cfg) => {
-      const num = (cfg.from_number as string) || 'your SendBlue number';
-      return `Text ${num} from any phone to talk to your agent. Responses arrive as iMessage (blue bubbles) when possible.`;
-    },
-  },
+  // SendBlue is handled by the dedicated SendBlueWizard component below.
+  // Other channels use the generic form.
   {
     type: 'imessage',
     name: 'iMessage (local)',
@@ -1866,6 +1845,335 @@ const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// SendBlue setup wizard — guided multi-step flow
+// ---------------------------------------------------------------------------
+
+function SendBlueWizard({
+  agentId,
+  binding,
+  onDone,
+  onRemove,
+}: {
+  agentId: string;
+  binding: ChannelBinding | undefined;
+  onDone: () => void;
+  onRemove: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [step, setStep] = useState<'idle' | 'creds' | 'verifying' | 'verified' | 'connecting' | 'done' | 'test'>('idle');
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [numbers, setNumbers] = useState<string[]>([]);
+  const [selectedNumber, setSelectedNumber] = useState('');
+  const [error, setError] = useState('');
+  const [testNumber, setTestNumber] = useState('');
+  const [testSent, setTestSent] = useState(false);
+
+  const isActive = !!binding;
+  const activeNumber = (binding?.config?.from_number as string) || '';
+
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--color-bg-secondary)',
+    border: isActive ? '1px solid #2a5a3a' : '1px dashed var(--color-border)',
+    borderRadius: 8, marginBottom: 10, overflow: 'hidden',
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    fontSize: 12, padding: '7px 18px', background: '#7c3aed', color: 'white',
+    border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 600,
+  };
+
+  const btnSecondary: React.CSSProperties = {
+    fontSize: 11, padding: '5px 14px', background: 'transparent',
+    color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)',
+    borderRadius: 4, cursor: 'pointer',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', background: 'var(--color-bg-secondary)',
+    border: '1px solid var(--color-border)', borderRadius: 4,
+    color: 'var(--color-text)', fontSize: 12, boxSizing: 'border-box',
+  };
+
+  const handleVerify = async () => {
+    setError('');
+    setStep('verifying');
+    try {
+      const result = await sendblueVerify(apiKey, apiSecret);
+      if (result.valid && result.numbers.length > 0) {
+        setNumbers(result.numbers);
+        setSelectedNumber(result.numbers[0]);
+        setStep('verified');
+      } else if (result.valid) {
+        setError('Credentials valid but no phone numbers found. Check your SendBlue dashboard.');
+        setStep('creds');
+      } else {
+        setError('Invalid credentials. Check your API key and secret.');
+        setStep('creds');
+      }
+    } catch (e) {
+      setError((e as Error).message);
+      setStep('creds');
+    }
+  };
+
+  const handleConnect = async () => {
+    setError('');
+    setStep('connecting');
+    try {
+      // 1. Bind the channel
+      await bindAgentChannel(agentId, 'sendblue', {
+        api_key_id: apiKey,
+        api_secret_key: apiSecret,
+        from_number: selectedNumber,
+      });
+      // 2. Try to auto-register webhook (best effort)
+      try {
+        const webhookUrl = `${window.location.origin}/webhooks/sendblue`;
+        await sendblueRegisterWebhook(apiKey, apiSecret, webhookUrl);
+      } catch {
+        // Non-fatal — user may need to set up ngrok manually
+      }
+      setStep('done');
+      onDone();
+    } catch (e) {
+      setError((e as Error).message);
+      setStep('verified');
+    }
+  };
+
+  const handleTest = async () => {
+    if (!testNumber.trim()) return;
+    setError('');
+    try {
+      const cfg = binding?.config || {};
+      await sendblueTest(
+        (cfg.api_key_id as string) || apiKey,
+        (cfg.api_secret_key as string) || apiSecret,
+        activeNumber || selectedNumber,
+        testNumber.trim(),
+      );
+      setTestSent(true);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  // Active state
+  if (isActive && !expanded) {
+    return (
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px' }}>
+          <span style={{ fontSize: 18, marginRight: 10 }}>{'\uD83D\uDCAC'}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>iMessage / SMS</div>
+            <div style={{ fontSize: 11, color: '#4ade80' }}>
+              Active on {activeNumber}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              background: '#2a5a3a', color: '#4ade80',
+              padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+            }}>Active</span>
+            <button onClick={() => setExpanded(true)} style={btnSecondary}>
+              Details
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Active + expanded (show how to use + test)
+  if (isActive && expanded) {
+    return (
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px' }}>
+          <span style={{ fontSize: 18, marginRight: 10 }}>{'\uD83D\uDCAC'}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>iMessage / SMS</div>
+            <div style={{ fontSize: 11, color: '#4ade80' }}>Active on {activeNumber}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setExpanded(false)} style={btnSecondary}>Collapse</button>
+            <button onClick={() => onRemove(binding!.id)} style={{ ...btnSecondary, color: '#f87171' }}>Remove</button>
+          </div>
+        </div>
+        <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
+          <div style={{ fontSize: 12, marginBottom: 10, lineHeight: 1.6 }}>
+            {'\u2192'} Text <strong>{activeNumber}</strong> from any phone to talk to your agent.
+            Responses arrive as iMessage (blue bubbles) when possible, SMS otherwise.
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8, fontWeight: 600 }}>
+            Send a test message
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={testNumber}
+              onChange={(e) => { setTestNumber(e.target.value); setTestSent(false); }}
+              placeholder="Your phone number (+1...)"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button
+              onClick={handleTest}
+              disabled={!testNumber.trim() || testSent}
+              style={{ ...btnPrimary, opacity: !testNumber.trim() ? 0.5 : 1 }}
+            >
+              {testSent ? 'Sent!' : 'Send Test'}
+            </button>
+          </div>
+          {error && <div style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>{error}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // Not active — setup wizard
+  return (
+    <div style={cardStyle}>
+      {/* Header */}
+      <div
+        style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer' }}
+        onClick={() => setStep(step === 'idle' ? 'creds' : 'idle')}
+      >
+        <span style={{ fontSize: 18, marginRight: 10 }}>{'\uD83D\uDCAC'}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>iMessage / SMS</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+            Your agent gets its own phone number — text it via iMessage or SMS
+          </div>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); setStep(step === 'idle' ? 'creds' : 'idle'); }}
+          style={{ fontSize: 10, padding: '3px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}
+        >
+          {step === 'idle' ? 'Set Up' : 'Cancel'}
+        </button>
+      </div>
+
+      {/* Step 1: Sign up + enter credentials */}
+      {(step === 'creds' || step === 'verifying') && (
+        <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Create a SendBlue account</span>
+          </div>
+          <button
+            onClick={() => window.open('https://sendblue.co/getblue', '_blank')}
+            style={{ ...btnPrimary, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            Open SendBlue signup {'\u2192'}
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Paste your API credentials</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+            Find these in your SendBlue dashboard under API settings.
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 3, fontWeight: 500 }}>
+              API Key ID *
+            </label>
+            <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Your API key ID" style={inputStyle} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 3, fontWeight: 500 }}>
+              API Secret Key *
+            </label>
+            <input value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} placeholder="Your API secret key" type="password" style={inputStyle} />
+          </div>
+
+          {error && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{error}</div>}
+
+          <button
+            onClick={handleVerify}
+            disabled={!apiKey.trim() || !apiSecret.trim() || step === 'verifying'}
+            style={{ ...btnPrimary, opacity: !apiKey.trim() || !apiSecret.trim() ? 0.5 : 1 }}
+          >
+            {step === 'verifying' ? 'Verifying...' : 'Verify & Find Number'}
+          </button>
+        </div>
+      )}
+
+      {/* Step 2: Number found — confirm + connect */}
+      {(step === 'verified' || step === 'connecting') && (
+        <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ background: '#22c55e', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{'\u2713'}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#4ade80' }}>Credentials verified</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>3</span>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Your agent's phone number</span>
+          </div>
+
+          {numbers.length > 1 ? (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 3, fontWeight: 500 }}>
+                Select a number for your agent
+              </label>
+              <select
+                value={selectedNumber}
+                onChange={(e) => setSelectedNumber(e.target.value)}
+                style={{ ...inputStyle, padding: '8px 10px' }}
+              >
+                {numbers.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div style={{
+              background: 'var(--color-bg-secondary)', border: '1px solid #2a5a3a',
+              borderRadius: 6, padding: '10px 12px', marginBottom: 12,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ fontSize: 20 }}>{'\uD83D\uDCF1'}</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{selectedNumber}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>This will be your agent's phone number</div>
+              </div>
+            </div>
+          )}
+
+          {error && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{error}</div>}
+
+          <button
+            onClick={handleConnect}
+            disabled={step === 'connecting'}
+            style={btnPrimary}
+          >
+            {step === 'connecting' ? 'Connecting...' : 'Activate Phone Number'}
+          </button>
+        </div>
+      )}
+
+      {/* Step 3: Done — success */}
+      {step === 'done' && (
+        <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
+          <div style={{
+            background: '#052e16', border: '1px solid #2a5a3a',
+            borderRadius: 6, padding: 12, marginBottom: 12, textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginBottom: 4 }}>
+              {'\u2713'} Your agent is now reachable via iMessage / SMS
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80' }}>{selectedNumber}</div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+            Text this number from any phone. Your agent will research your personal data and respond via iMessage (blue bubbles) when possible.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessagingTab({ agentId }: { agentId: string }) {
   const [bindings, setBindings] = useState<ChannelBinding[]>([]);
   const [setupType, setSetupType] = useState<string | null>(null);
@@ -1925,6 +2233,23 @@ function MessagingTab({ agentId }: { agentId: string }) {
         fontSize: 12, marginBottom: 14,
       }}>
         Connect a messaging platform so you can talk to your agent from your phone or other devices.
+      </div>
+
+      {/* SendBlue wizard — primary option */}
+      <SendBlueWizard
+        agentId={agentId}
+        binding={bindings.find((b) => b.channel_type === 'sendblue')}
+        onDone={loadBindings}
+        onRemove={(id) => { unbindAgentChannel(agentId, id).then(loadBindings).catch(() => {}); }}
+      />
+
+      {/* Divider */}
+      <div style={{
+        fontSize: 10, color: 'var(--color-text-secondary)',
+        textTransform: 'uppercase', letterSpacing: 1,
+        margin: '14px 0 8px', fontWeight: 600,
+      }}>
+        Other channels
       </div>
 
       {MESSAGING_CHANNELS.map((ch) => {

@@ -1715,4 +1715,169 @@ def create_agent_manager_router(
 
         return get_credential_status(tool_name)
 
-    return agents_router, templates_router, global_router, tools_router
+    # ── SendBlue auto-setup helpers ─────────────────────────
+
+    sendblue_router = APIRouter(
+        prefix="/v1/channels/sendblue", tags=["sendblue"]
+    )
+
+    @sendblue_router.post("/verify")
+    async def sendblue_verify(request: Request):
+        """Verify SendBlue credentials and return assigned phone lines."""
+        body = await request.json()
+        api_key_id = body.get("api_key_id", "")
+        api_secret_key = body.get("api_secret_key", "")
+        if not api_key_id or not api_secret_key:
+            raise HTTPException(
+                status_code=400,
+                detail="api_key_id and api_secret_key are required",
+            )
+
+        import httpx
+
+        try:
+            resp = httpx.get(
+                "https://api.sendblue.co/api/lines",
+                headers={
+                    "sb-api-key-id": api_key_id,
+                    "sb-api-secret-key": api_secret_key,
+                },
+                timeout=15.0,
+            )
+            if resp.status_code == 401:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid SendBlue credentials",
+                )
+            if resp.status_code >= 400:
+                raise HTTPException(
+                    status_code=resp.status_code,
+                    detail=f"SendBlue API error: {resp.text[:200]}",
+                )
+            data = resp.json()
+            # data might be a list of lines or {"lines": [...]}
+            lines = data if isinstance(data, list) else data.get(
+                "lines", data.get("data", [])
+            )
+            numbers = []
+            for line in lines:
+                num = (
+                    line.get("number")
+                    or line.get("phone_number")
+                    or line.get("from_number")
+                    or (line if isinstance(line, str) else "")
+                )
+                if num:
+                    numbers.append(num)
+            return {
+                "valid": True,
+                "numbers": numbers,
+                "raw": data,
+            }
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to reach SendBlue: {exc}",
+            )
+
+    @sendblue_router.post("/register-webhook")
+    async def sendblue_register_webhook(request: Request):
+        """Auto-register the /webhooks/sendblue endpoint with SendBlue."""
+        body = await request.json()
+        api_key_id = body.get("api_key_id", "")
+        api_secret_key = body.get("api_secret_key", "")
+        webhook_url = body.get("webhook_url", "")
+        if not webhook_url:
+            raise HTTPException(
+                status_code=400,
+                detail="webhook_url is required",
+            )
+
+        import httpx
+
+        try:
+            resp = httpx.post(
+                "https://api.sendblue.co/api/account/webhooks",
+                headers={
+                    "sb-api-key-id": api_key_id,
+                    "sb-api-secret-key": api_secret_key,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "receive": webhook_url,
+                },
+                timeout=15.0,
+            )
+            return {
+                "registered": resp.status_code < 300,
+                "status": resp.status_code,
+                "response": resp.json()
+                if resp.status_code < 300
+                else resp.text[:200],
+            }
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to register webhook: {exc}",
+            )
+
+    @sendblue_router.post("/test")
+    async def sendblue_test(request: Request):
+        """Send a test message via SendBlue to verify the setup works."""
+        body = await request.json()
+        api_key_id = body.get("api_key_id", "")
+        api_secret_key = body.get("api_secret_key", "")
+        from_number = body.get("from_number", "")
+        to_number = body.get("to_number", "")
+        if not to_number:
+            raise HTTPException(
+                status_code=400,
+                detail="to_number is required",
+            )
+
+        import httpx
+
+        try:
+            payload: Dict[str, str] = {
+                "number": to_number,
+                "content": (
+                    "Hello from your OpenJarvis agent! "
+                    "Text this number anytime to search your "
+                    "personal data. Reply with any question to try it."
+                ),
+            }
+            if from_number:
+                payload["from_number"] = from_number
+
+            resp = httpx.post(
+                "https://api.sendblue.co/api/send-message",
+                headers={
+                    "sb-api-key-id": api_key_id,
+                    "sb-api-secret-key": api_secret_key,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=15.0,
+            )
+            return {
+                "sent": resp.status_code < 300,
+                "status": resp.status_code,
+                "response": resp.json()
+                if resp.status_code < 300
+                else resp.text[:200],
+            }
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to send test message: {exc}",
+            )
+
+    return (
+        agents_router,
+        templates_router,
+        global_router,
+        tools_router,
+        sendblue_router,
+    )

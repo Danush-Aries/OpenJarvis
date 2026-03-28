@@ -466,6 +466,68 @@ export async function unbindAgentChannel(
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
 }
 
+// -- SendBlue auto-setup helpers ------------------------------------------
+
+export async function sendblueVerify(
+  apiKeyId: string,
+  apiSecretKey: string,
+): Promise<{ valid: boolean; numbers: string[]; raw: unknown }> {
+  const res = await fetch(`${getBase()}/v1/channels/sendblue/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key_id: apiKeyId, api_secret_key: apiSecretKey }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Verification failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function sendblueRegisterWebhook(
+  apiKeyId: string,
+  apiSecretKey: string,
+  webhookUrl: string,
+): Promise<{ registered: boolean; status: number }> {
+  const res = await fetch(`${getBase()}/v1/channels/sendblue/register-webhook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key_id: apiKeyId,
+      api_secret_key: apiSecretKey,
+      webhook_url: webhookUrl,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Webhook registration failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function sendblueTest(
+  apiKeyId: string,
+  apiSecretKey: string,
+  fromNumber: string,
+  toNumber: string,
+): Promise<{ sent: boolean; status: number }> {
+  const res = await fetch(`${getBase()}/v1/channels/sendblue/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key_id: apiKeyId,
+      api_secret_key: apiSecretKey,
+      from_number: fromNumber,
+      to_number: toNumber,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Test message failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchTemplates(): Promise<AgentTemplate[]> {
   const res = await fetch(`${getBase()}/v1/templates`);
   if (!res.ok) throw new Error(`Failed: ${res.status}`);

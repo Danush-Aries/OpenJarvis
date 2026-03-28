@@ -806,13 +806,18 @@ def include_all_routes(app) -> None:
                 create_agent_manager_router,
             )
 
-            agents_r, templates_r, global_r, tools_r = create_agent_manager_router(
-                app.state.agent_manager
-            )
+            (
+                agents_r,
+                templates_r,
+                global_r,
+                tools_r,
+                sendblue_r,
+            ) = create_agent_manager_router(app.state.agent_manager)
             app.include_router(agents_r)
             app.include_router(templates_r)
             app.include_router(global_r)
             app.include_router(tools_r)
+            app.include_router(sendblue_r)
     except ImportError:
         pass
 

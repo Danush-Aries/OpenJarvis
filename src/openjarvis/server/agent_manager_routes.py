@@ -589,14 +589,11 @@ async def _stream_managed_agent(
                 # Log query start
                 _dr_start = _dr_time.time()
                 try:
-                    _entry = manager.add_learning_log(
+                    manager.add_learning_log(
                         agent_id,
                         "query_start",
                         f"Query: {user_content[:100]}",
                         {"full_query": user_content},
-                    )
-                    logger.info(
-                        "Logged query_start: %s", _entry.get("id", "?"),
                     )
                 except Exception as _log_exc:
                     logger.warning(

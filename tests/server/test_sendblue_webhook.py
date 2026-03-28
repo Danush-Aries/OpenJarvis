@@ -9,10 +9,13 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI
-from starlette.testclient import TestClient
 
-from openjarvis.core.registry import ChannelRegistry
+pytest.importorskip("fastapi", reason="openjarvis[server] not installed")
+
+from fastapi import FastAPI  # noqa: E402
+from starlette.testclient import TestClient  # noqa: E402
+
+from openjarvis.core.registry import ChannelRegistry  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

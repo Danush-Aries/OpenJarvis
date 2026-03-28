@@ -1795,7 +1795,7 @@ const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
     ],
     fields: [
       { key: 'bot_token', label: 'Bot Token', placeholder: 'xoxb-...', type: 'password', required: true },
-      { key: 'app_token', label: 'App Token (optional \u2014 enables receiving DMs)', placeholder: 'xapp-...', type: 'password' },
+      { key: 'app_token', label: 'App Token (required for receiving DMs)', placeholder: 'xapp-...', type: 'password', required: true },
     ],
     activeLabel: () => 'Connected to Slack',
     howToUse: () => 'Open Slack and DM @Jarvis to talk to your agent.',

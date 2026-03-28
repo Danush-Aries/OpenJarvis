@@ -108,7 +108,7 @@ _TOKEN_SOURCES = [
         "connector_id": "slack",
         "display_name": "Slack",
         "creds_file": "slack.json",
-        "prompt_label": "Bot token (xoxb-... or xoxe-...)",
+        "prompt_label": "Bot token (xoxb-...)",
     },
     {
         "connector_id": "notion",

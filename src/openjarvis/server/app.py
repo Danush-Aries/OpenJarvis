@@ -130,6 +130,9 @@ def create_app(
     app.include_router(create_connectors_router())
     include_all_routes(app)
 
+    # Restore SendBlue channel bindings from database on startup
+    _restore_sendblue_bindings(app)
+
     # Add security headers middleware
     try:
         from openjarvis.server.middleware import create_security_middleware

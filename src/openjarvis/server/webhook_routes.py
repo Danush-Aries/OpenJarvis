@@ -232,9 +232,43 @@ def create_webhook_router(
             return Response("OK", status_code=200)
 
         def _handle_and_reply() -> None:
-            response = active_bridge.handle_incoming(
-                from_number, content, "sendblue"
+            import time as _time
+
+            # Immediate acknowledgment
+            if reply_channel:
+                reply_channel.send(
+                    from_number,
+                    "Message received! Researching your data now...",
+                )
+
+            start = _time.monotonic()
+
+            # Start a "still working" reminder in a separate thread
+            import threading
+
+            done_event = threading.Event()
+
+            def _send_delay_notice() -> None:
+                if not done_event.wait(45):
+                    # 45s elapsed — send a heads-up
+                    if reply_channel:
+                        reply_channel.send(
+                            from_number,
+                            "Still working — complex query, hang tight...",
+                        )
+
+            reminder = threading.Thread(
+                target=_send_delay_notice, daemon=True
             )
+            reminder.start()
+
+            try:
+                response = active_bridge.handle_incoming(
+                    from_number, content, "sendblue"
+                )
+            finally:
+                done_event.set()
+
             # Send the agent's response back via SendBlue
             if response and reply_channel:
                 reply_channel.send(from_number, response)

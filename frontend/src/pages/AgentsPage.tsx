@@ -912,7 +912,19 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
     setMessages((prev) => [localMsg, ...prev]);
 
     try {
-      await sendAgentMessage(agentId, text, mode);
+      const response = await sendAgentMessage(agentId, text, mode);
+      // Add the agent's response as a local bubble immediately
+      if (response && response.content) {
+        setMessages((prev) => [
+          {
+            ...response,
+            id: response.id || `response-${Date.now()}`,
+            direction: 'agent_to_user',
+          },
+          ...prev,
+        ]);
+      }
+      // Also refresh from server to sync any persisted messages
       await loadData();
     } catch {
       // ignore

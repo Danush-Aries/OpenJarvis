@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 # Module-level cache of connector instances (keyed by connector_id).
 _instances: Dict[str, Any] = {}
@@ -223,6 +226,35 @@ def create_connectors_router():
 
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+        # Auto-ingest after successful connection
+        if instance.is_connected():
+            import threading
+
+            def _ingest() -> None:
+                try:
+                    from openjarvis.connectors.pipeline import (
+                        IngestionPipeline,
+                    )
+                    from openjarvis.connectors.store import KnowledgeStore
+                    from openjarvis.connectors.sync_engine import SyncEngine
+
+                    store = KnowledgeStore()
+                    pipeline = IngestionPipeline(store)
+                    engine = SyncEngine(pipeline)
+                    engine.sync(instance)
+                    logger.info(
+                        "Auto-ingested %s after connect",
+                        connector_id,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Auto-ingest failed for %s: %s",
+                        connector_id,
+                        exc,
+                    )
+
+            threading.Thread(target=_ingest, daemon=True).start()
 
         return {
             "connector_id": connector_id,

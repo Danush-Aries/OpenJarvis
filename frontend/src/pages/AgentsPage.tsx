@@ -29,6 +29,7 @@ import {
   sendblueVerify,
   sendblueRegisterWebhook,
   sendblueTest,
+  sendblueHealth,
 } from '../lib/api';
 import type { AgentTask, ChannelBinding, AgentTemplate, AgentMessage, ManagedAgent, LearningLogEntry, AgentTrace, ToolInfo } from '../lib/api';
 import {
@@ -1870,8 +1871,30 @@ function SendBlueWizard({
   const [testNumber, setTestNumber] = useState('');
   const [testSent, setTestSent] = useState(false);
 
+  const [healthy, setHealthy] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
+
   const isActive = !!binding;
   const activeNumber = (binding?.config?.from_number as string) || '';
+
+  // Check health on mount when active
+  useEffect(() => {
+    if (!isActive) return;
+    sendblueHealth().then((h) => setHealthy(h.ready)).catch(() => setHealthy(false));
+  }, [isActive]);
+
+  const handleReconnect = async () => {
+    if (!binding) return;
+    setReconnecting(true);
+    try {
+      // Re-bind to re-create the bridge
+      const cfg = binding.config || {};
+      await unbindAgentChannel(agentId, binding.id);
+      await bindAgentChannel(agentId, 'sendblue', cfg as Record<string, unknown>);
+      setHealthy(true);
+      onDone();
+    } catch { /* */ } finally { setReconnecting(false); }
+  };
 
   const cardStyle: React.CSSProperties = {
     background: 'var(--color-bg-secondary)',
@@ -1971,15 +1994,25 @@ function SendBlueWizard({
           <span style={{ fontSize: 18, marginRight: 10 }}>{'\uD83D\uDCAC'}</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>iMessage / SMS</div>
-            <div style={{ fontSize: 11, color: '#4ade80' }}>
-              Active on {activeNumber}
+            <div style={{ fontSize: 11, color: healthy ? '#4ade80' : '#f59e0b' }}>
+              {healthy ? `Active on ${activeNumber}` : `Disconnected — ${activeNumber}`}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {!healthy && (
+              <button
+                onClick={handleReconnect}
+                disabled={reconnecting}
+                style={{ ...btnPrimary, fontSize: 10, padding: '3px 10px' }}
+              >
+                {reconnecting ? '...' : 'Reconnect'}
+              </button>
+            )}
             <span style={{
-              background: '#2a5a3a', color: '#4ade80',
+              background: healthy ? '#2a5a3a' : '#78350f',
+              color: healthy ? '#4ade80' : '#f59e0b',
               padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-            }}>Active</span>
+            }}>{healthy ? 'Active' : 'Disconnected'}</span>
             <button onClick={() => setExpanded(true)} style={btnSecondary}>
               Details
             </button>

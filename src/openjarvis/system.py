@@ -864,6 +864,15 @@ class SystemBuilder:
                 if wbc.assistant_name:
                     kwargs["assistant_name"] = wbc.assistant_name
                 kwargs["assistant_has_own_number"] = wbc.assistant_has_own_number
+            elif key == "sendblue":
+                sbc = getattr(config.channel, "sendblue", None)
+                if sbc:
+                    if getattr(sbc, "api_key_id", ""):
+                        kwargs["api_key_id"] = sbc.api_key_id
+                    if getattr(sbc, "api_secret_key", ""):
+                        kwargs["api_secret_key"] = sbc.api_secret_key
+                    if getattr(sbc, "from_number", ""):
+                        kwargs["from_number"] = sbc.from_number
 
             return ChannelRegistry.create(key, **kwargs)
         except Exception as exc:

@@ -528,6 +528,12 @@ export async function sendblueTest(
   return res.json();
 }
 
+export async function sendblueHealth(): Promise<{ channel_connected: boolean; bridge_wired: boolean; ready: boolean }> {
+  const res = await fetch(`${getBase()}/v1/channels/sendblue/health`);
+  if (!res.ok) return { channel_connected: false, bridge_wired: false, ready: false };
+  return res.json();
+}
+
 export async function fetchTemplates(): Promise<AgentTemplate[]> {
   const res = await fetch(`${getBase()}/v1/templates`);
   if (!res.ok) throw new Error(`Failed: ${res.status}`);

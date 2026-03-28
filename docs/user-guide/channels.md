@@ -457,6 +457,72 @@ api_secret_key = "YOUR_API_SECRET_KEY"
 from_number = "+16452468235"
 ```
 
+### CLI Usage
+
+```bash
+# Set credentials via environment variables
+export SENDBLUE_API_KEY_ID="your_key"
+export SENDBLUE_API_SECRET_KEY="your_secret"
+export SENDBLUE_FROM_NUMBER="+16452468235"
+
+# Check channel status
+jarvis channel status --channel-type sendblue
+
+# Send a message
+jarvis channel send sendblue "+15551234567" "Hello from Jarvis!"
+```
+
+### Server Restart Behavior
+
+SendBlue bindings are **automatically restored on server restart**. When `jarvis serve` starts:
+
+1. The server checks the database for existing SendBlue channel bindings
+2. Re-creates the `SendBlueChannel` instance with stored credentials
+3. Re-wires the `ChannelBridge` with a `DeepResearchAgent`
+4. Incoming webhooks resume working immediately
+
+**However, if using ngrok:** The tunnel URL changes on every ngrok restart. You must re-register the new URL with SendBlue:
+
+```bash
+# Start ngrok (get new URL)
+ngrok http 8222
+
+# Register the new webhook URL
+curl -X PUT https://api.sendblue.co/api/account/webhooks \
+  -H "sb-api-key-id: YOUR_KEY" \
+  -H "sb-api-secret-key: YOUR_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"webhooks": {"receive": ["https://NEW-NGROK-URL.ngrok-free.dev/webhooks/sendblue"]}}'
+```
+
+!!! tip "Stable tunnel URL"
+    Ngrok paid plans provide a fixed subdomain that persists across restarts. Alternatively, use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) for a free, stable URL.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Message received!" ack sent but no response | DeepResearch agent timed out or errored | Check server logs for errors |
+| No ack, no response | Webhook URL not reachable | Verify ngrok is running; re-register webhook URL |
+| "Disconnected" badge in Messaging tab | Server restarted without restoring bindings | Click "Reconnect" in the UI |
+| SendBlue returns 401 | Invalid API credentials | Re-enter API key and secret in Messaging tab |
+| "Contacts must text this number first" | Free tier requires verified contacts | Add the recipient in SendBlue dashboard under Contacts |
+| Messages arrive but are not processed | Channel bridge not wired | Remove and re-add the SendBlue binding in Messaging tab |
+
+### Health Check
+
+The server exposes `GET /v1/channels/sendblue/health` which returns:
+
+```json
+{
+  "channel_connected": true,
+  "bridge_wired": true,
+  "ready": true
+}
+```
+
+If `ready` is `false`, the Messaging tab shows a "Disconnected" badge with a "Reconnect" button.
+
 ---
 
 ## WhatsAppBaileysChannel

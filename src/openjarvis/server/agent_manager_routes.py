@@ -1947,6 +1947,21 @@ def create_agent_manager_router(
                 detail=f"Failed to send test message: {exc}",
             )
 
+    @sendblue_router.get("/health")
+    async def sendblue_health(request: Request):
+        """Check if the SendBlue channel bridge is wired and ready."""
+        sb = getattr(request.app.state, "sendblue_channel", None)
+        bridge = getattr(request.app.state, "channel_bridge", None)
+        has_bridge = bridge is not None and (
+            hasattr(bridge, "_channels")
+            and "sendblue" in bridge._channels
+        )
+        return {
+            "channel_connected": sb is not None,
+            "bridge_wired": has_bridge,
+            "ready": sb is not None and has_bridge,
+        }
+
     return (
         agents_router,
         templates_router,

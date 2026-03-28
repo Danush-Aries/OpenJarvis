@@ -234,6 +234,27 @@ def run_oauth_flow(
     # Parse port from redirect_uri
     port = int(urlparse(redirect_uri).port or 8789)
 
+    # Kill any stale listener on the port before starting
+    import socket
+
+    test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        test_sock.bind(("127.0.0.1", port))
+        test_sock.close()
+    except OSError:
+        # Port in use — try to free it
+        test_sock.close()
+        import subprocess
+
+        subprocess.run(
+            ["lsof", "-t", "-i", f":{port}"],
+            capture_output=True,
+        )
+        # Wait briefly and retry
+        import time
+
+        time.sleep(1)
+
     server = HTTPServer(("127.0.0.1", port), _CallbackHandler)
     server.timeout = 120  # 2 minute timeout
 

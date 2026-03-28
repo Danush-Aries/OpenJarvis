@@ -181,22 +181,29 @@ class GDriveConnector(BaseConnector):
         # If user pastes client_id:client_secret, store and run OAuth flow
         if ":" in code and ".apps.googleusercontent.com" in code:
             client_id, client_secret = code.split(":", 1)
-            try:
-                run_oauth_flow(
-                    client_id=client_id.strip(),
-                    client_secret=client_secret.strip(),
-                    scopes=[_GDRIVE_SCOPE],
-                    credentials_path=self._credentials_path,
-                )
-            except Exception:  # noqa: BLE001
-                # Fallback: just save the credentials for later
-                save_tokens(
-                    self._credentials_path,
-                    {
-                        "client_id": client_id.strip(),
-                        "client_secret": client_secret.strip(),
-                    },
-                )
+            # Save credentials immediately
+            save_tokens(
+                self._credentials_path,
+                {
+                    "client_id": client_id.strip(),
+                    "client_secret": client_secret.strip(),
+                },
+            )
+            # Run OAuth flow in background thread to avoid blocking
+            import threading
+
+            def _run() -> None:
+                try:
+                    run_oauth_flow(
+                        client_id=client_id.strip(),
+                        client_secret=client_secret.strip(),
+                        scopes=[_GDRIVE_SCOPE],
+                        credentials_path=self._credentials_path,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+
+            threading.Thread(target=_run, daemon=True).start()
         else:
             # Raw token or auth code
             save_tokens(self._credentials_path, {"token": code})

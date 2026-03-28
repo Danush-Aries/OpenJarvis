@@ -50,6 +50,8 @@ import {
   RefreshCw,
   Wifi,
   Database,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { SOURCE_CATALOG } from '../types/connectors';
 import type { ConnectRequest } from '../types/connectors';
@@ -854,8 +856,11 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
 // Detail view — Interact tab
 // ---------------------------------------------------------------------------
 
+/** AgentMessage extended with optional response metadata for the footer. */
+type InteractMessage = AgentMessage & { _elapsed?: string; _toolCalls?: number };
+
 function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: string }) {
-  const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [messages, setMessages] = useState<InteractMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [waitingForResponse, setWaitingForResponse] = useState(false);
@@ -864,6 +869,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
   const [currentActivity, setCurrentActivity] = useState('');
   const [liveStatus, setLiveStatus] = useState(agentStatus);
   const [streamElapsedMs, setStreamElapsedMs] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -944,22 +950,29 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
       setStreamElapsedMs(Date.now() - startTime);
     }, 100);
 
+    let toolCount = 0;
     try {
       const response = await sendAgentMessage(agentId, text, mode, {
-        onProgress: (label) => setProgressLabel(label),
+        onProgress: (label) => {
+          setProgressLabel(label);
+          toolCount++;
+        },
         onContentDelta: (_delta, full) => setStreamingContent(full),
         onDone: () => {
           // Clear streaming state — final content comes from the response object
           setStreamingContent('');
         },
       });
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       // Add the agent's response as a local bubble immediately
       if (response && response.content) {
         setMessages((prev) => [
           {
             ...response,
             id: response.id || `response-${Date.now()}`,
-            direction: 'agent_to_user',
+            direction: 'agent_to_user' as const,
+            _elapsed: elapsed,
+            _toolCalls: toolCount,
           },
           ...prev,
         ]);
@@ -986,13 +999,10 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
     .filter((m) => m.direction === 'user_to_agent' || m.content.trim())
     .reverse();
 
-  const isAgentWorking = liveStatus === 'running';
-  const hasPending = messages.some((m) => m.status === 'pending');
-
   return (
     <div className="flex flex-col h-full" style={{ minHeight: 320 }}>
       <div className="flex-1 overflow-y-auto space-y-3 pb-4" style={{ maxHeight: 400 }}>
-        {displayMessages.length === 0 && !isAgentWorking && (
+        {displayMessages.length === 0 && !waitingForResponse && (
           <div className="text-sm text-center py-8" style={{ color: 'var(--color-text-tertiary)' }}>
             No messages yet. Send a message to interact with this agent.
           </div>
@@ -1014,11 +1024,50 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
               <p className="text-xs mt-1 opacity-70">
                 {msg.status === 'pending' ? 'sending...' : new Date(msg.created_at * 1000).toLocaleTimeString()}
               </p>
+              {msg.direction === 'agent_to_user' && (msg._elapsed || (msg._toolCalls && msg._toolCalls > 0)) && (
+                <div
+                  style={{
+                    borderTop: '1px solid var(--color-border-subtle)',
+                    marginTop: 6,
+                    paddingTop: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 11,
+                    color: 'var(--color-text-tertiary)',
+                  }}
+                >
+                  {msg._elapsed && <span>{msg._elapsed}s</span>}
+                  {msg._toolCalls != null && msg._toolCalls > 0 && (
+                    <span>{msg._toolCalls} tool {msg._toolCalls === 1 ? 'call' : 'calls'}</span>
+                  )}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(msg.content);
+                      setCopiedId(msg.id);
+                      setTimeout(() => setCopiedId(null), 2000);
+                    }}
+                    style={{
+                      marginLeft: 'auto',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--color-text-tertiary)',
+                      padding: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title="Copy response"
+                  >
+                    {copiedId === msg.id ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
-        {/* Progress indicator — shown when waiting but no streamed content yet, or alongside streaming */}
-        {(isAgentWorking || hasPending || waitingForResponse || sending) && !streamingContent && (
+        {/* Progress indicator — shown when waiting but no streamed content yet */}
+        {(waitingForResponse || sending) && !streamingContent && (
           <div className="flex justify-start">
             <div
               className="px-3 py-2 rounded-lg text-sm"
@@ -1032,9 +1081,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
                 <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />
                 {sending
                   ? 'Sending message...'
-                  : waitingForResponse
-                    ? progressLabel || 'Initializing agent...'
-                    : currentActivity || 'Agent is thinking...'}
+                  : progressLabel || 'Agent is thinking...'}
               </div>
             </div>
           </div>
@@ -1478,41 +1525,111 @@ function InlineConnectForm({
 // Messaging tab component
 // ---------------------------------------------------------------------------
 
-const MESSAGING_CHANNELS = [
+interface ChannelField {
+  key: string;
+  label: string;
+  placeholder: string;
+  type?: 'text' | 'password';
+  required?: boolean;
+}
+
+interface MessagingChannelConfig {
+  type: string;
+  name: string;
+  icon: string;
+  description: string;
+  setupSteps: string[];
+  fields: ChannelField[];
+  activeLabel: (cfg: Record<string, unknown>) => string;
+  howToUse: (cfg: Record<string, unknown>) => string;
+}
+
+const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
   {
-    type: 'imessage', name: 'iMessage', icon: '\uD83D\uDCAC',
-    description: 'Text from your iPhone, iPad, or Mac',
-    activeTemplate: (id: string) => `Text ${id} from your iPhone`,
-    setupLabel: 'Phone number or email for the agent to use',
-    placeholder: '+15551234567',
+    type: 'imessage',
+    name: 'iMessage',
+    icon: '\uD83D\uDCAC',
+    description: 'Talk to your agent via iMessage from your iPhone or another Apple device',
+    setupSteps: [
+      'Your agent monitors iMessage on this Mac using the Messages app.',
+      'Enter your phone number or Apple ID below — your agent will watch for texts from that contact.',
+      'Then open iMessage on your iPhone and text this Mac. Your agent reads the message, researches your data, and responds in the same conversation.',
+      'Requires macOS Full Disk Access + Accessibility permissions (System Settings \u2192 Privacy & Security).',
+    ],
+    fields: [
+      { key: 'identifier', label: 'Your phone number or Apple ID', placeholder: '+15551234567 or you@icloud.com', required: true },
+    ],
+    activeLabel: (cfg) => `Monitoring messages from ${(cfg.identifier as string) || '?'}`,
+    howToUse: (cfg) => `Open iMessage on your phone and text this Mac from ${(cfg.identifier as string) || 'your phone'}. Your agent will respond automatically.`,
   },
   {
-    type: 'slack', name: 'Slack', icon: '#',
-    description: 'Message from any Slack workspace',
-    activeTemplate: (id: string) => `DM @jarvis in ${id}`,
-    setupLabel: 'Slack bot token (xoxb-...)',
-    placeholder: 'xoxb-...',
+    type: 'slack',
+    name: 'Slack',
+    icon: '#',
+    description: 'DM your agent in any Slack workspace',
+    setupSteps: [
+      '1. Go to api.slack.com/apps \u2192 Create New App \u2192 From Scratch',
+      '2. Under OAuth & Permissions, add bot scopes: chat:write, channels:history, im:history, im:read',
+      '3. Install the app to your workspace and authorize it',
+      '4. Copy the Bot User OAuth Token (starts with xoxb-) from the OAuth page',
+      '5. For real-time DMs: enable Socket Mode, create an App-Level Token (starts with xapp-)',
+    ],
+    fields: [
+      { key: 'bot_token', label: 'Bot Token', placeholder: 'xoxb-...', type: 'password', required: true },
+      { key: 'app_token', label: 'App Token (optional \u2014 enables receiving DMs)', placeholder: 'xapp-...', type: 'password' },
+    ],
+    activeLabel: () => 'Connected to Slack',
+    howToUse: () => 'Open Slack and DM @Jarvis to talk to your agent.',
   },
   {
-    type: 'whatsapp', name: 'WhatsApp', icon: '\uD83D\uDCF1',
-    description: 'Message via WhatsApp',
-    activeTemplate: (id: string) => `Message ${id} on WhatsApp`,
-    setupLabel: 'WhatsApp access token',
-    placeholder: 'Access token',
+    type: 'whatsapp',
+    name: 'WhatsApp',
+    icon: '\uD83D\uDCF1',
+    description: 'Message your agent on WhatsApp \u2014 runs locally, no cloud API needed',
+    setupSteps: [
+      'OpenJarvis connects to WhatsApp using the Baileys protocol (local, on-device).',
+      'Click Connect below. A QR code will appear in the server terminal.',
+      'On your phone: open WhatsApp \u2192 Settings \u2192 Linked Devices \u2192 Link a Device, then scan the QR code.',
+      'Once linked, send a WhatsApp message to the connected number to talk to your agent.',
+    ],
+    fields: [
+      { key: 'assistant_name', label: 'Agent display name (optional)', placeholder: 'Jarvis' },
+    ],
+    activeLabel: () => 'WhatsApp linked',
+    howToUse: () => 'Send a WhatsApp message to the linked number. Your agent will respond in the chat.',
   },
   {
-    type: 'twilio', name: 'SMS (Twilio)', icon: '\uD83D\uDCE8',
-    description: 'Text from any phone via Twilio',
-    activeTemplate: (id: string) => `Text ${id} from any phone`,
-    setupLabel: 'Twilio phone number',
-    placeholder: '+15551234567',
+    type: 'twilio',
+    name: 'SMS',
+    icon: '\uD83D\uDCE8',
+    description: 'Text your agent from any phone via Twilio',
+    setupSteps: [
+      '1. Create a free Twilio account at twilio.com/try-twilio',
+      '2. In the Twilio Console, buy a phone number (or use the trial number)',
+      '3. Copy your Account SID and Auth Token from the Console Dashboard',
+      '4. Enter all three values below',
+      'After setup, text the Twilio number from any phone to talk to your agent.',
+    ],
+    fields: [
+      { key: 'account_sid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', required: true },
+      { key: 'auth_token', label: 'Auth Token', placeholder: 'Your Twilio auth token', type: 'password', required: true },
+      { key: 'phone_number', label: 'Twilio Phone Number', placeholder: '+15551234567', required: true },
+    ],
+    activeLabel: (cfg) => {
+      const num = (cfg.phone_number as string) || '';
+      return num ? `SMS active on ${num}` : 'SMS connected via Twilio';
+    },
+    howToUse: (cfg) => {
+      const num = (cfg.phone_number as string) || 'your Twilio number';
+      return `Text ${num} from any phone to talk to your agent.`;
+    },
   },
 ];
 
 function MessagingTab({ agentId }: { agentId: string }) {
   const [bindings, setBindings] = useState<ChannelBinding[]>([]);
   const [setupType, setSetupType] = useState<string | null>(null);
-  const [inputValue, setInputValue] = useState('');
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const loadBindings = useCallback(() => {
@@ -1521,15 +1638,27 @@ function MessagingTab({ agentId }: { agentId: string }) {
 
   useEffect(() => { loadBindings(); }, [loadBindings]);
 
-  const handleSetup = async (channelType: string) => {
-    if (!inputValue.trim()) return;
+  const setField = (key: string, value: string) => {
+    setFormValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSetup = async (ch: MessagingChannelConfig) => {
+    // Check required fields
+    const missing = ch.fields.filter(
+      (f) => f.required && !formValues[f.key]?.trim(),
+    );
+    if (missing.length > 0) return;
+
     setLoading(true);
     try {
-      await bindAgentChannel(agentId, channelType, {
-        identifier: inputValue.trim(),
-      });
+      const config: Record<string, string> = {};
+      for (const f of ch.fields) {
+        const v = formValues[f.key]?.trim();
+        if (v) config[f.key] = v;
+      }
+      await bindAgentChannel(agentId, ch.type, config);
       setSetupType(null);
-      setInputValue('');
+      setFormValues({});
       loadBindings();
     } catch { /* */ } finally { setLoading(false); }
   };
@@ -1541,19 +1670,32 @@ function MessagingTab({ agentId }: { agentId: string }) {
     } catch { /* */ }
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '6px 10px',
+    background: 'var(--color-bg-secondary)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 4, color: 'var(--color-text)',
+    fontSize: 12, boxSizing: 'border-box',
+  };
+
   return (
     <div style={{ padding: 16 }}>
       <div style={{
         color: 'var(--color-text-secondary)',
-        fontSize: 12, marginBottom: 12,
+        fontSize: 12, marginBottom: 14,
       }}>
-        Talk to your agent from your phone or other platforms
+        Connect a messaging platform so you can talk to your agent from your phone or other devices.
       </div>
 
       {MESSAGING_CHANNELS.map((ch) => {
         const binding = bindings.find((b) => b.channel_type === ch.type);
-        const identifier = binding?.config?.identifier as string || binding?.session_id || '';
+        const cfg = (binding?.config || {}) as Record<string, unknown>;
         const isSetup = setupType === ch.type;
+
+        // Check if required fields are filled
+        const canConnect = ch.fields.every(
+          (f) => !f.required || formValues[f.key]?.trim(),
+        );
 
         return (
           <div
@@ -1563,24 +1705,23 @@ function MessagingTab({ agentId }: { agentId: string }) {
               border: binding
                 ? '1px solid #2a5a3a'
                 : '1px dashed var(--color-border)',
-              borderRadius: 8, marginBottom: 8,
-              opacity: binding ? 1 : 0.6,
+              borderRadius: 8, marginBottom: 10,
               overflow: 'hidden',
             }}
           >
+            {/* Header row */}
             <div style={{
               display: 'flex', alignItems: 'center',
               padding: '12px 14px',
             }}>
-              <span style={{ fontSize: 16, marginRight: 10 }}>{ch.icon}</span>
+              <span style={{ fontSize: 18, marginRight: 10 }}>{ch.icon}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{ch.name}</div>
-                <div style={{ fontSize: 11,
+                <div style={{
+                  fontSize: 11,
                   color: binding ? '#4ade80' : 'var(--color-text-secondary)',
                 }}>
-                  {binding
-                    ? ch.activeTemplate(identifier)
-                    : 'Not set up'}
+                  {binding ? ch.activeLabel(cfg) : ch.description}
                 </div>
               </div>
               {binding ? (
@@ -1588,7 +1729,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
                   <span style={{
                     background: '#2a5a3a', color: '#4ade80',
                     padding: '2px 8px', borderRadius: 10,
-                    fontSize: 10,
+                    fontSize: 10, fontWeight: 600,
                   }}>Active</span>
                   <button
                     onClick={() => handleRemove(binding.id)}
@@ -1605,13 +1746,13 @@ function MessagingTab({ agentId }: { agentId: string }) {
                 <button
                   onClick={() => {
                     setSetupType(isSetup ? null : ch.type);
-                    setInputValue('');
+                    setFormValues({});
                   }}
                   style={{
                     fontSize: 10, padding: '3px 12px',
                     background: '#7c3aed', color: 'white',
                     border: 'none', borderRadius: 5,
-                    cursor: 'pointer',
+                    cursor: 'pointer', fontWeight: 600,
                   }}
                 >
                   {isSetup ? 'Cancel' : 'Set Up'}
@@ -1619,46 +1760,82 @@ function MessagingTab({ agentId }: { agentId: string }) {
               )}
             </div>
 
-            {isSetup && (
+            {/* Active state: how to use */}
+            {binding && (
               <div style={{
                 borderTop: '1px solid var(--color-border)',
                 padding: '10px 14px',
                 background: 'var(--color-bg)',
               }}>
                 <div style={{
-                  fontSize: 11, marginBottom: 6,
-                  color: 'var(--color-text-secondary)',
-                }}>{ch.setupLabel}</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder={ch.placeholder}
-                    style={{
-                      flex: 1, padding: '6px 10px',
-                      background: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 4, color: 'var(--color-text)',
-                      fontSize: 12,
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSetup(ch.type);
-                    }}
-                  />
-                  <button
-                    onClick={() => handleSetup(ch.type)}
-                    disabled={loading || !inputValue.trim()}
-                    style={{
-                      fontSize: 11, padding: '6px 14px',
-                      background: '#7c3aed', color: 'white',
-                      border: 'none', borderRadius: 4,
-                      cursor: 'pointer',
-                      opacity: loading || !inputValue.trim() ? 0.5 : 1,
-                    }}
-                  >
-                    {loading ? '...' : 'Connect'}
-                  </button>
+                  fontSize: 11, color: 'var(--color-text-secondary)',
+                  display: 'flex', alignItems: 'flex-start', gap: 6,
+                }}>
+                  <span style={{ flexShrink: 0 }}>{'\u2192'}</span>
+                  <span>{ch.howToUse(cfg)}</span>
                 </div>
+              </div>
+            )}
+
+            {/* Setup form */}
+            {isSetup && (
+              <div style={{
+                borderTop: '1px solid var(--color-border)',
+                padding: '14px',
+                background: 'var(--color-bg)',
+              }}>
+                {/* Setup instructions */}
+                <div style={{
+                  fontSize: 11, lineHeight: 1.5,
+                  color: 'var(--color-text-secondary)',
+                  marginBottom: 12,
+                  padding: '8px 10px',
+                  background: 'var(--color-bg-secondary)',
+                  borderRadius: 6,
+                  borderLeft: '3px solid var(--color-accent, #7c3aed)',
+                }}>
+                  {ch.setupSteps.map((step, i) => (
+                    <div key={i} style={{ marginBottom: i < ch.setupSteps.length - 1 ? 4 : 0 }}>
+                      {step}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Form fields */}
+                {ch.fields.map((field) => (
+                  <div key={field.key} style={{ marginBottom: 8 }}>
+                    <label style={{
+                      display: 'block', fontSize: 11,
+                      color: 'var(--color-text-secondary)',
+                      marginBottom: 3, fontWeight: 500,
+                    }}>
+                      {field.label}{field.required ? ' *' : ''}
+                    </label>
+                    <input
+                      type={field.type || 'text'}
+                      value={formValues[field.key] || ''}
+                      onChange={(e) => setField(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      style={inputStyle}
+                    />
+                  </div>
+                ))}
+
+                {/* Connect button */}
+                <button
+                  onClick={() => handleSetup(ch)}
+                  disabled={loading || !canConnect}
+                  style={{
+                    fontSize: 12, padding: '7px 20px',
+                    background: '#7c3aed', color: 'white',
+                    border: 'none', borderRadius: 5,
+                    cursor: 'pointer', fontWeight: 600,
+                    opacity: loading || !canConnect ? 0.5 : 1,
+                    marginTop: 4,
+                  }}
+                >
+                  {loading ? 'Connecting...' : 'Connect'}
+                </button>
               </div>
             )}
           </div>

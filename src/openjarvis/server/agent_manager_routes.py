@@ -1326,70 +1326,84 @@ def create_agent_manager_router(
                         "Failed to init SendBlue channel: %s", exc
                     )
 
-        # Start Slack Socket Mode listener if binding slack
+        # Start Slack via slack-bolt Socket Mode
         if req.channel_type == "slack":
             config = req.config or {}
             bot_token = config.get("bot_token", "")
             app_token = config.get("app_token", "")
-            if bot_token:
+            if bot_token and app_token:
                 try:
-                    from openjarvis.channels.slack import SlackChannel
-
-                    slack_ch = SlackChannel(
-                        bot_token=bot_token,
-                        app_token=app_token,
+                    from slack_bolt import App as SlackBoltApp
+                    from slack_bolt.adapter.socket_mode import (
+                        SocketModeHandler,
                     )
 
+                    bolt_app = SlackBoltApp(token=bot_token)
+
                     # Build agent for handling messages
-                    engine = getattr(request.app.state, "engine", None)
-                    if engine:
-                        tools = _build_deep_research_tools(
-                            engine=engine, model="",
+                    srv_engine = getattr(
+                        request.app.state, "engine", None,
+                    )
+                    dr_agent = None
+                    if srv_engine:
+                        dr_tools = _build_deep_research_tools(
+                            engine=srv_engine, model="",
                         )
-                        if tools:
+                        if dr_tools:
                             from openjarvis.agents.deep_research import (
                                 DeepResearchAgent,
                             )
 
-                            agent_inst = DeepResearchAgent(
-                                engine=engine,
-                                model=getattr(engine, "_model", ""),
-                                tools=tools,
+                            dr_agent = DeepResearchAgent(
+                                engine=srv_engine,
+                                model=getattr(
+                                    srv_engine, "_model", "",
+                                ),
+                                tools=dr_tools,
                             )
 
-                            def _slack_handler(msg):
-                                """Handle incoming Slack DM."""
-                                try:
-                                    result = agent_inst.run(msg.content)
-                                    reply = result.content or "No results."
-                                    slack_ch.send(
-                                        msg.conversation_id,
-                                        reply,
-                                    )
-                                except Exception as _exc:
-                                    logger.warning(
-                                        "Slack handler error: %s", _exc,
-                                    )
-                                    slack_ch.send(
-                                        msg.conversation_id,
-                                        f"Error: {_exc}",
-                                    )
+                    @bolt_app.event("message")
+                    def _handle_slack_dm(event, say):
+                        text = event.get("text", "")
+                        if not text:
+                            return
+                        say("Message received! Researching now...")
+                        if dr_agent:
+                            try:
+                                result = dr_agent.run(text)
+                                reply = (
+                                    result.content
+                                    or "No results found."
+                                )
+                            except Exception as _exc:
+                                reply = f"Error: {_exc}"
+                        else:
+                            reply = (
+                                "Agent not available. "
+                                "Please check server config."
+                            )
+                        say(reply)
 
-                            slack_ch.on_message(_slack_handler)
+                    sm_handler = SocketModeHandler(
+                        bolt_app, app_token,
+                    )
+                    sm_handler.connect()
 
-                    slack_ch.connect()
-
-                    # Store on app_state for cleanup
-                    if not hasattr(request.app.state, "_slack_channels"):
-                        request.app.state._slack_channels = {}
-                    request.app.state._slack_channels[
+                    # Store for cleanup
+                    if not hasattr(
+                        request.app.state, "_slack_handlers",
+                    ):
+                        request.app.state._slack_handlers = {}
+                    request.app.state._slack_handlers[
                         binding["id"]
-                    ] = slack_ch
+                    ] = sm_handler
 
-                    logger.info("Slack channel connected via Socket Mode")
+                    logger.info(
+                        "Slack connected via Bolt Socket Mode",
+                    )
                 except Exception as exc:
                     logger.warning(
-                        "Failed to start Slack channel: %s", exc,
+                        "Failed to start Slack: %s", exc,
                     )
 
         return binding
@@ -1409,12 +1423,12 @@ def create_agent_manager_router(
 
                     stop_daemon()
                 elif ch_type == "slack":
-                    slack_channels = getattr(
-                        request.app.state, "_slack_channels", {},
+                    slack_handlers = getattr(
+                        request.app.state, "_slack_handlers", {},
                     )
-                    slack_ch = slack_channels.pop(binding_id, None)
-                    if slack_ch:
-                        slack_ch.disconnect()
+                    sm = slack_handlers.pop(binding_id, None)
+                    if sm:
+                        sm.close()
         except Exception:
             pass
         manager.unbind_channel(binding_id)

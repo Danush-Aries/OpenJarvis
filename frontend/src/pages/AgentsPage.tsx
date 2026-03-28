@@ -895,10 +895,24 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
 
   async function handleSend(mode: 'immediate' | 'queued') {
     if (!input.trim()) return;
+    const text = input.trim();
+    setInput('');
     setSending(true);
+
+    // Show user message immediately as a local bubble
+    const localMsg: AgentMessage = {
+      id: `local-${Date.now()}`,
+      agent_id: agentId,
+      direction: 'user_to_agent',
+      content: text,
+      mode,
+      status: 'delivered',
+      created_at: Date.now() / 1000,
+    };
+    setMessages((prev) => [localMsg, ...prev]);
+
     try {
-      await sendAgentMessage(agentId, input.trim(), mode);
-      setInput('');
+      await sendAgentMessage(agentId, text, mode);
       await loadData();
     } catch {
       // ignore

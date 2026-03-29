@@ -11,7 +11,7 @@ from rich.table import Table
 
 @click.group("channels")
 def channels() -> None:
-    """Manage messaging channels (iMessage, Slack, WhatsApp, SMS)."""
+    """Manage messaging channels (iMessage/SMS via SendBlue, Slack)."""
 
 
 @channels.command("status")

@@ -1763,25 +1763,8 @@ interface MessagingChannelConfig {
 }
 
 const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
-  // SendBlue is handled by the dedicated SendBlueWizard component below.
-  // Other channels use the generic form.
-  {
-    type: 'imessage',
-    name: 'iMessage (local)',
-    icon: '\uD83D\uDCBB',
-    description: 'Free alternative \u2014 monitors Messages on this Mac (same Apple ID limitation)',
-    setupSteps: [
-      'Your agent monitors iMessage on this Mac using the Messages app.',
-      'Enter the phone number or Apple ID to watch for incoming messages.',
-      'Note: This only works when someone with a DIFFERENT Apple ID texts you. It cannot detect self-messages between your own devices.',
-      'Requires macOS Full Disk Access + Accessibility permissions (System Settings \u2192 Privacy & Security).',
-    ],
-    fields: [
-      { key: 'identifier', label: 'Phone number or Apple ID to monitor', placeholder: '+15551234567 or friend@icloud.com', required: true },
-    ],
-    activeLabel: (cfg) => `Monitoring messages from ${(cfg.identifier as string) || '?'}`,
-    howToUse: (cfg) => `Have someone text ${(cfg.identifier as string) || 'the monitored contact'} on this Mac. Your agent will respond automatically.`,
-  },
+  // SendBlue (iMessage + SMS) is handled by the dedicated SendBlueWizard above.
+  // These are the other supported channels.
   {
     type: 'slack',
     name: 'Slack',
@@ -1789,60 +1772,19 @@ const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
     description: 'DM your agent in any Slack workspace',
     setupSteps: [
       '1. Go to api.slack.com/apps \u2192 Create New App \u2192 From Scratch',
-      '2. Under OAuth & Permissions, add bot scopes: chat:write, channels:history, im:history, im:read',
-      '3. Install the app to your workspace and authorize it',
-      '4. Copy the Bot User OAuth Token (starts with xoxb-) from the OAuth page',
-      '5. For real-time DMs: enable Socket Mode, create an App-Level Token (starts with xapp-)',
+      '2. Go to App Manifest and paste this JSON to configure everything at once:',
+      '{"display_information":{"name":"OpenJarvis"},"features":{"app_home":{"home_tab_enabled":true,"messages_tab_enabled":true,"messages_tab_read_only_enabled":false},"bot_user":{"display_name":"OpenJarvis","always_online":true}},"oauth_config":{"scopes":{"bot":["chat:write","im:write","im:read","im:history","users:read","channels:read","channels:history","app_mentions:read"]}},"settings":{"event_subscriptions":{"bot_events":["message.im"]},"socket_mode_enabled":true}}',
+      '3. Save, then go to Install App \u2192 Install to Workspace \u2192 Authorize',
+      '4. Copy the Bot User OAuth Token (xoxb-...) from OAuth & Permissions',
+      '5. Go to Basic Information \u2192 App-Level Tokens \u2192 Generate Token \u2192 add connections:write scope \u2192 copy the token (xapp-...)',
+      '6. Paste both tokens below',
     ],
     fields: [
       { key: 'bot_token', label: 'Bot Token', placeholder: 'xoxb-...', type: 'password', required: true },
-      { key: 'app_token', label: 'App Token (required for receiving DMs)', placeholder: 'xapp-...', type: 'password', required: true },
+      { key: 'app_token', label: 'App Token', placeholder: 'xapp-...', type: 'password', required: true },
     ],
     activeLabel: () => 'Connected to Slack',
-    howToUse: () => 'Open Slack and DM @Jarvis to talk to your agent.',
-  },
-  {
-    type: 'whatsapp',
-    name: 'WhatsApp',
-    icon: '\uD83D\uDCF1',
-    description: 'Message your agent on WhatsApp \u2014 runs locally, no cloud API needed',
-    setupSteps: [
-      'OpenJarvis connects to WhatsApp using the Baileys protocol (local, on-device).',
-      'Click Connect below. A QR code will appear in the server terminal.',
-      'On your phone: open WhatsApp \u2192 Settings \u2192 Linked Devices \u2192 Link a Device, then scan the QR code.',
-      'Once linked, send a WhatsApp message to the connected number to talk to your agent.',
-    ],
-    fields: [
-      { key: 'assistant_name', label: 'Agent display name (optional)', placeholder: 'Jarvis' },
-    ],
-    activeLabel: () => 'WhatsApp linked',
-    howToUse: () => 'Send a WhatsApp message to the linked number. Your agent will respond in the chat.',
-  },
-  {
-    type: 'twilio',
-    name: 'SMS',
-    icon: '\uD83D\uDCE8',
-    description: 'Text your agent from any phone via Twilio',
-    setupSteps: [
-      '1. Create a free Twilio account at twilio.com/try-twilio',
-      '2. In the Twilio Console, buy a phone number (or use the trial number)',
-      '3. Copy your Account SID and Auth Token from the Console Dashboard',
-      '4. Enter all three values below',
-      'After setup, text the Twilio number from any phone to talk to your agent.',
-    ],
-    fields: [
-      { key: 'account_sid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', required: true },
-      { key: 'auth_token', label: 'Auth Token', placeholder: 'Your Twilio auth token', type: 'password', required: true },
-      { key: 'phone_number', label: 'Twilio Phone Number', placeholder: '+15551234567', required: true },
-    ],
-    activeLabel: (cfg) => {
-      const num = (cfg.phone_number as string) || '';
-      return num ? `SMS active on ${num}` : 'SMS connected via Twilio';
-    },
-    howToUse: (cfg) => {
-      const num = (cfg.phone_number as string) || 'your Twilio number';
-      return `Text ${num} from any phone to talk to your agent.`;
-    },
+    howToUse: () => 'Open Slack and DM @OpenJarvis to talk to your agent.',
   },
 ];
 

@@ -760,11 +760,20 @@ class AgentConfig:
 class ServerConfig:
     """API server settings."""
 
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
     agent: str = "orchestrator"
     model: str = ""
     workers: int = 1
+    cors_origins: list = field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "tauri://localhost",
+        ]
+    )
 
 
 @dataclass(slots=True)
@@ -972,7 +981,7 @@ class SecurityConfig:
     enabled: bool = True
     scan_input: bool = True
     scan_output: bool = True
-    mode: str = "warn"  # "redact" | "warn" | "block"
+    mode: str = "redact"  # "redact" | "warn" | "block"
     secret_scanner: bool = True
     pii_scanner: bool = True
     audit_log_path: str = str(DEFAULT_CONFIG_DIR / "audit.db")
@@ -980,9 +989,13 @@ class SecurityConfig:
     merkle_audit: bool = True
     signing_key_path: str = ""
     ssrf_protection: bool = True
-    rate_limit_enabled: bool = False
+    rate_limit_enabled: bool = True
     rate_limit_rpm: int = 60
     rate_limit_burst: int = 10
+    local_engine_bypass: bool = False
+    local_tool_bypass: bool = False
+    profile: str = ""
+    vault_key_path: str = str(DEFAULT_CONFIG_DIR / ".vault_key")
     capabilities: CapabilitiesConfig = field(default_factory=CapabilitiesConfig)
 
 

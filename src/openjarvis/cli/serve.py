@@ -356,7 +356,7 @@ def serve(
     check_bind_safety(bind_host, api_key=api_key)
 
     # Log credential status at startup
-    from openjarvis.core.credentials import get_credential_status, TOOL_CREDENTIALS
+    from openjarvis.core.credentials import TOOL_CREDENTIALS, get_credential_status
 
     _cred_parts = []
     for _tool_name in sorted(TOOL_CREDENTIALS):

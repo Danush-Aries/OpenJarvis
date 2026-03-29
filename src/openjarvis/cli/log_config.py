@@ -77,7 +77,9 @@ def setup_logging(
             backupCount=3,
         )
         file_handler.setLevel(logging.DEBUG)
-        file_fmt = SanitizingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        file_fmt = SanitizingFormatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s"
+        )
         file_handler.setFormatter(file_fmt)
         logger.addHandler(file_handler)
 

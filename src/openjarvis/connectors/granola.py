@@ -268,13 +268,13 @@ class GranolaConnector(BaseConnector):
         if not api_key:
             return
 
-        # Convert since to ISO string if provided
+        # Convert since to ISO string if provided.
+        # Granola API requires ISO 8601 with Z suffix (not +00:00).
         created_after: Optional[str] = None
         if since is not None:
-            # Ensure UTC-aware for serialisation
-            if since.tzinfo is None:
-                since = since.replace(tzinfo=timezone.utc)
-            created_after = since.isoformat()
+            if since.tzinfo is not None:
+                since = since.replace(tzinfo=None)
+            created_after = since.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         page_cursor: Optional[str] = cursor
         synced = 0

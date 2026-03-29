@@ -1006,6 +1006,83 @@ class SecurityConfig:
     capabilities: CapabilitiesConfig = field(default_factory=CapabilitiesConfig)
 
 
+# ---------------------------------------------------------------------------
+# Security profile presets
+# ---------------------------------------------------------------------------
+
+_SECURITY_PROFILES: Dict[str, Dict[str, Dict[str, Any]]] = {
+    "personal": {
+        "security": {
+            "mode": "redact",
+            "rate_limit_enabled": True,
+            "local_engine_bypass": False,
+            "local_tool_bypass": False,
+        },
+        "server": {
+            "host": "127.0.0.1",
+        },
+    },
+    "shared": {
+        "security": {
+            "mode": "redact",
+            "rate_limit_enabled": True,
+            "local_engine_bypass": False,
+            "local_tool_bypass": False,
+        },
+        "server": {
+            "host": "127.0.0.1",
+        },
+    },
+    "server": {
+        "security": {
+            "mode": "block",
+            "rate_limit_enabled": True,
+            "rate_limit_rpm": 30,
+            "rate_limit_burst": 5,
+            "local_engine_bypass": False,
+            "local_tool_bypass": False,
+        },
+        "server": {
+            "host": "0.0.0.0",
+        },
+    },
+}
+
+
+def apply_security_profile(
+    security_cfg: "SecurityConfig",
+    server_cfg: "ServerConfig | None",
+    *,
+    overrides: "set[str] | None" = None,
+) -> None:
+    """Expand a named security profile into config fields.
+
+    Fields in *overrides* (explicitly set by the user in TOML) are
+    not overwritten by the profile.
+    """
+    profile = security_cfg.profile
+    if not profile:
+        return
+
+    if profile not in _SECURITY_PROFILES:
+        raise ValueError(
+            f"Unknown security profile '{profile}'. "
+            f"Valid profiles: {', '.join(_SECURITY_PROFILES)}"
+        )
+
+    _overrides = overrides or set()
+    pdef = _SECURITY_PROFILES[profile]
+
+    for key, value in pdef.get("security", {}).items():
+        if key not in _overrides and hasattr(security_cfg, key):
+            setattr(security_cfg, key, value)
+
+    if server_cfg is not None:
+        for key, value in pdef.get("server", {}).items():
+            if key not in _overrides and hasattr(server_cfg, key):
+                setattr(server_cfg, key, value)
+
+
 @dataclass(slots=True)
 class SandboxConfig:
     """Container sandbox settings."""
@@ -1385,6 +1462,14 @@ def load_config(path: Optional[Path] = None) -> JarvisConfig:
         # Memory: accept [memory] (old) → maps to tools.storage
         if "memory" in data:
             _apply_toml_section(cfg.tools.storage, data["memory"])
+
+        # Expand security profile (user TOML overrides take precedence)
+        _user_security_keys = set(data.get("security", {}).keys())
+        apply_security_profile(cfg.security, cfg.server, overrides=_user_security_keys)
+
+    # Apply profile even without a config file (in case defaults set one)
+    if not config_path.exists() and cfg.security.profile:
+        apply_security_profile(cfg.security, cfg.server)
 
     return cfg
 

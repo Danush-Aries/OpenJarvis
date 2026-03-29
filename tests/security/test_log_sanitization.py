@@ -72,3 +72,45 @@ class TestSanitizingFormatter:
         )
         result = fmt.format(record)
         assert "xoxb-" not in result
+
+
+import os
+import tempfile
+from pathlib import Path
+
+
+class TestScopedCredentialAccess:
+    """get_tool_credential should return values without polluting os.environ."""
+
+    def test_returns_credential_value(self) -> None:
+        from openjarvis.core.credentials import get_tool_credential
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write('[slack]\nSLACK_BOT_TOKEN = "xoxb-test-token"\n')
+            f.flush()
+            result = get_tool_credential(
+                "slack", "SLACK_BOT_TOKEN", path=Path(f.name)
+            )
+            assert result == "xoxb-test-token"
+            assert os.environ.get("SLACK_BOT_TOKEN") != "xoxb-test-token"
+        os.unlink(f.name)
+
+    def test_returns_none_for_missing(self) -> None:
+        from openjarvis.core.credentials import get_tool_credential
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write("[slack]\n")
+            f.flush()
+            result = get_tool_credential(
+                "slack", "SLACK_BOT_TOKEN", path=Path(f.name)
+            )
+            assert result is None
+        os.unlink(f.name)
+
+    def test_returns_none_for_missing_file(self) -> None:
+        from openjarvis.core.credentials import get_tool_credential
+
+        result = get_tool_credential(
+            "slack", "SLACK_BOT_TOKEN", path=Path("/nonexistent/file.toml")
+        )
+        assert result is None

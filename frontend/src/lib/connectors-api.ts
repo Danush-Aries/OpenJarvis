@@ -40,3 +40,14 @@ export async function getSyncStatus(id: string): Promise<SyncStatus> {
   if (!res.ok) throw new Error(`Failed to get sync status for ${id}: ${res.status}`);
   return res.json();
 }
+
+export async function triggerSync(id: string): Promise<{ connector_id: string; chunks_indexed: number; status: string }> {
+  const res = await fetch(`${getBase()}/v1/connectors/${encodeURIComponent(id)}/sync`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Sync failed: ${res.status}`);
+  }
+  return res.json();
+}

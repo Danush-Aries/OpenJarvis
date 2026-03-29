@@ -1,7 +1,7 @@
 [template]
 id = "personal_deep_research"
 name = "Personal Deep Research"
-description = "Research your emails, messages, meetings, and docs. Answers questions with cited reports."
+description = "Searches your personal data and produces cited reports."
 agent_type = "deep_research"
 schedule_type = "manual"
 schedule_value = ""

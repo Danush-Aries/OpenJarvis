@@ -92,7 +92,7 @@ class GmailIMAPConnector(BaseConnector):
         credentials_path: str = "",
         *,
         imap_host: str = "",
-        max_messages: int = 500,
+        max_messages: int = 5000,
     ) -> None:
         self._email = email_address
         self._password = app_password

@@ -1441,7 +1441,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
         color: 'var(--color-text-secondary)',
         fontSize: 12, marginBottom: 12,
       }}>
-        Data sources your agent can search
+        Data sources your agent can search across
       </div>
 
       {/* Connected sources grid */}
@@ -1771,13 +1771,14 @@ const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
     icon: '#',
     description: 'DM your agent in any Slack workspace',
     setupSteps: [
-      '1. Go to api.slack.com/apps \u2192 Create New App \u2192 From Scratch',
-      '2. Go to App Manifest and paste this JSON to configure everything at once:',
-      '{"display_information":{"name":"OpenJarvis"},"features":{"app_home":{"home_tab_enabled":true,"messages_tab_enabled":true,"messages_tab_read_only_enabled":false},"bot_user":{"display_name":"OpenJarvis","always_online":true}},"oauth_config":{"scopes":{"bot":["chat:write","im:write","im:read","im:history","users:read","channels:read","channels:history","app_mentions:read"]}},"settings":{"event_subscriptions":{"bot_events":["message.im"]},"socket_mode_enabled":true}}',
-      '3. Save, then go to Install App \u2192 Install to Workspace \u2192 Authorize',
-      '4. Copy the Bot User OAuth Token (xoxb-...) from OAuth & Permissions',
-      '5. Go to Basic Information \u2192 App-Level Tokens \u2192 Generate Token \u2192 add connections:write scope \u2192 copy the token (xapp-...)',
-      '6. Paste both tokens below',
+      '1. Go to api.slack.com/apps → click "Create New App" → choose "From an app manifest"',
+      '2. Select your workspace. When asked for the manifest format, choose JSON. Then paste the manifest below (click "Copy" to copy it):',
+      'COPYABLE:{"display_information":{"name":"OpenJarvis"},"features":{"app_home":{"home_tab_enabled":true,"messages_tab_enabled":true,"messages_tab_read_only_enabled":false},"bot_user":{"display_name":"OpenJarvis","always_online":true}},"oauth_config":{"scopes":{"bot":["chat:write","im:write","im:read","im:history","mpim:read","mpim:history","users:read","channels:read","channels:history","channels:join","groups:read","groups:history","app_mentions:read"]}},"settings":{"event_subscriptions":{"bot_events":["message.im"]},"socket_mode_enabled":true}}',
+      '3. Click "Next" → review the summary → click "Create". Then go to "Install App" in the left sidebar → click "Install to Workspace" → click "Allow"',
+      '4. In the left sidebar, click "OAuth & Permissions". Copy the "Bot User OAuth Token" (starts with xoxb-...)',
+      '5. In the left sidebar, click "Basic Information" → scroll to "App-Level Tokens" → click "Generate Token and Scopes" → name it "socket" → click "Add Scope" → select "connections:write" → click "Generate" → copy the token (starts with xapp-...)',
+      '6. (Optional) Still in "Basic Information", scroll to "Display Information" → upload the OpenJarvis icon as the app icon',
+      '7. Paste both tokens below and click Connect',
     ],
     fields: [
       { key: 'bot_token', label: 'Bot Token', placeholder: 'xoxb-...', type: 'password', required: true },
@@ -1787,6 +1788,106 @@ const MESSAGING_CHANNELS: MessagingChannelConfig[] = [
     howToUse: () => 'Open Slack and DM @OpenJarvis to talk to your agent.',
   },
 ];
+
+// ---------------------------------------------------------------------------
+// SendBlue webhook step — ngrok tunnel + registration
+// ---------------------------------------------------------------------------
+
+function SendBlueWebhookStep({
+  apiKey, apiSecret, selectedNumber,
+}: {
+  apiKey: string; apiSecret: string; selectedNumber: string;
+}) {
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookStatus, setWebhookStatus] = useState<'idle' | 'registering' | 'done' | 'error'>('idle');
+
+  const registerWebhook = async () => {
+    if (!webhookUrl.trim()) return;
+    setWebhookStatus('registering');
+    try {
+      const url = webhookUrl.trim().replace(/\/+$/, '') + '/v1/channels/sendblue/webhook';
+      await sendblueRegisterWebhook(apiKey, apiSecret, url);
+      setWebhookStatus('done');
+    } catch {
+      setWebhookStatus('error');
+    }
+  };
+
+  return (
+    <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
+      <div style={{
+        background: '#052e16', border: '1px solid #2a5a3a',
+        borderRadius: 6, padding: 12, marginBottom: 12, textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginBottom: 4 }}>
+          {'\u2713'} Your agent is now reachable via iMessage / SMS
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80' }}>{selectedNumber}</div>
+      </div>
+
+      {/* Webhook / ngrok step */}
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>4</span>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Set up webhook to receive texts</span>
+        </div>
+        <div style={{
+          fontSize: 11, lineHeight: 1.6,
+          color: 'var(--color-text-secondary)',
+          padding: '8px 10px', marginBottom: 10,
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 6,
+          borderLeft: '3px solid var(--color-accent, #7c3aed)',
+        }}>
+          <div><strong>1.</strong> Open a terminal and run: <code style={{ color: 'var(--color-accent)', background: 'var(--color-bg)', padding: '1px 4px', borderRadius: 3 }}>ngrok http 8000</code></div>
+          <div style={{ marginTop: 4 }}><strong>2.</strong> Copy the <code style={{ color: 'var(--color-accent)', background: 'var(--color-bg)', padding: '1px 4px', borderRadius: 3 }}>https://</code> forwarding URL</div>
+          <div style={{ marginTop: 4 }}><strong>3.</strong> Paste it below and click "Register Webhook"</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            value={webhookUrl}
+            onChange={(e) => { setWebhookUrl(e.target.value); setWebhookStatus('idle'); }}
+            placeholder="https://abc123.ngrok-free.app"
+            style={{
+              flex: 1, padding: '7px 10px', background: 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-border)', borderRadius: 4,
+              color: 'var(--color-text)', fontSize: 12, boxSizing: 'border-box' as const,
+            }}
+          />
+          <button
+            onClick={registerWebhook}
+            disabled={!webhookUrl.trim() || webhookStatus === 'registering'}
+            style={{
+              fontSize: 11, padding: '7px 14px', whiteSpace: 'nowrap' as const,
+              background: webhookStatus === 'done' ? '#22c55e' : '#7c3aed',
+              color: 'white', border: 'none', borderRadius: 5,
+              cursor: 'pointer', fontWeight: 600,
+              opacity: !webhookUrl.trim() || webhookStatus === 'registering' ? 0.5 : 1,
+            }}
+          >
+            {webhookStatus === 'registering' ? 'Registering...'
+              : webhookStatus === 'done' ? 'Registered!'
+              : webhookStatus === 'error' ? 'Retry'
+              : 'Register Webhook'}
+          </button>
+        </div>
+        {webhookStatus === 'done' && (
+          <div style={{ fontSize: 11, color: '#22c55e', marginTop: 6 }}>
+            Webhook registered! Incoming texts will be forwarded to your agent.
+          </div>
+        )}
+        {webhookStatus === 'error' && (
+          <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>
+            Failed to register. Check your ngrok URL and try again.
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 8 }}>
+          Don't have ngrok? <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>Download it free</a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // SendBlue setup wizard — guided multi-step flow
@@ -2051,7 +2152,11 @@ function SendBlueWizard({
             <span style={{ fontSize: 12, fontWeight: 600 }}>Paste your API credentials</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-            Find these in your SendBlue dashboard under API settings.
+            Go to your{' '}
+            <a href="https://dashboard.sendblue.co/api-credentials" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
+              SendBlue API Credentials page
+            </a>{' '}
+            and copy the API Key and API Secret.
           </div>
 
           <div style={{ marginBottom: 8 }}>
@@ -2152,22 +2257,13 @@ function SendBlueWizard({
         </div>
       )}
 
-      {/* Step 3: Done — success */}
+      {/* Step 3: Done — success + webhook setup */}
       {step === 'done' && (
-        <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
-          <div style={{
-            background: '#052e16', border: '1px solid #2a5a3a',
-            borderRadius: 6, padding: 12, marginBottom: 12, textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginBottom: 4 }}>
-              {'\u2713'} Your agent is now reachable via iMessage / SMS
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80' }}>{selectedNumber}</div>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-            Text this number from any phone. Your agent will research your personal data and respond via iMessage (blue bubbles) when possible.
-          </div>
-        </div>
+        <SendBlueWebhookStep
+          apiKey={apiKey}
+          apiSecret={apiSecret}
+          selectedNumber={selectedNumber}
+        />
       )}
     </div>
   );
@@ -2231,7 +2327,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
         color: 'var(--color-text-secondary)',
         fontSize: 12, marginBottom: 14,
       }}>
-        Connect a messaging platform so you can talk to your agent from your phone or other devices.
+        Connect a messaging channel so you can talk to your agent from your phone or other devices.
       </div>
 
       {/* SendBlue wizard — primary option */}
@@ -2248,7 +2344,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
         textTransform: 'uppercase', letterSpacing: 1,
         margin: '14px 0 8px', fontWeight: 600,
       }}>
-        Other channels
+        Other messaging channels
       </div>
 
       {MESSAGING_CHANNELS.map((ch) => {
@@ -2358,11 +2454,41 @@ function MessagingTab({ agentId }: { agentId: string }) {
                   borderRadius: 6,
                   borderLeft: '3px solid var(--color-accent, #7c3aed)',
                 }}>
-                  {ch.setupSteps.map((step, i) => (
-                    <div key={i} style={{ marginBottom: i < ch.setupSteps.length - 1 ? 4 : 0 }}>
-                      {step}
-                    </div>
-                  ))}
+                  {ch.setupSteps.map((step, i) => {
+                    if (step.startsWith('COPYABLE:')) {
+                      const text = step.slice(9);
+                      return (
+                        <div key={i} style={{ marginBottom: 6, marginTop: 4 }}>
+                          <div style={{
+                            position: 'relative',
+                            background: 'var(--color-bg)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 4, padding: '8px 10px',
+                            fontSize: 10, fontFamily: 'monospace',
+                            wordBreak: 'break-all', lineHeight: 1.4,
+                            maxHeight: 80, overflowY: 'auto',
+                          }}>
+                            {text}
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(text); }}
+                              style={{
+                                position: 'sticky', float: 'right', top: 0,
+                                fontSize: 10, padding: '2px 8px',
+                                background: '#7c3aed', color: 'white',
+                                border: 'none', borderRadius: 3,
+                                cursor: 'pointer', fontWeight: 600,
+                              }}
+                            >Copy</button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={i} style={{ marginBottom: i < ch.setupSteps.length - 1 ? 4 : 0 }}>
+                        {step}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Form fields */}
@@ -2822,8 +2948,8 @@ export function AgentsPage() {
     const DETAIL_TABS = [
       { id: 'overview', label: 'Overview', icon: Activity },
       { id: 'interact', label: 'Interact', icon: MessageSquare },
-      { id: 'channels', label: 'Channels', icon: Database },
-      { id: 'messaging', label: 'Messaging', icon: Wifi },
+      { id: 'channels', label: 'Data Sources', icon: Database },
+      { id: 'messaging', label: 'Messaging Channels', icon: Wifi },
       { id: 'tasks', label: 'Tasks', icon: ListTodo },
       { id: 'memory', label: 'Memory', icon: Brain },
       { id: 'learning', label: 'Learning', icon: Settings },
@@ -2946,6 +3072,34 @@ export function AgentsPage() {
               </div>
             </div>
 
+            {/* Hint for deep research agents */}
+            {selectedAgent.agent_type === 'deep_research' && (
+              <div
+                className="flex items-start gap-3 p-3 rounded-lg text-sm"
+                style={{
+                  background: 'var(--color-accent-subtle)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <Database size={16} style={{ color: 'var(--color-accent)', flexShrink: 0, marginTop: 2 }} />
+                <div style={{ color: 'var(--color-text-secondary)' }}>
+                  <strong>Tip:</strong> Connect your personal data in the{' '}
+                  <button
+                    onClick={() => setDetailTab('channels')}
+                    className="cursor-pointer underline"
+                    style={{ color: 'var(--color-accent)', background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+                  >Data Sources</button>{' '}
+                  tab, then set up{' '}
+                  <button
+                    onClick={() => setDetailTab('messaging')}
+                    className="cursor-pointer underline"
+                    style={{ color: 'var(--color-accent)', background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+                  >Messaging Channels</button>{' '}
+                  to talk to this agent from your phone.
+                </div>
+              </div>
+            )}
+
             {/* Usage stats + savings — single compact row */}
             {(() => {
               const inTok = selectedAgent.input_tokens ?? 0;
@@ -3029,7 +3183,7 @@ export function AgentsPage() {
                 style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
               >
                 <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                  Channel Bindings
+                  Messaging Channels
                 </h3>
                 {channels.map((b) => (
                   <div key={b.id} className="text-sm py-1" style={{ color: 'var(--color-text)' }}>

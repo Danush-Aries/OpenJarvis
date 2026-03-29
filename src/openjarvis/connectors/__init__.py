@@ -49,6 +49,21 @@ except ImportError:
     pass
 
 try:
+    import openjarvis.connectors.slack_connector  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.connectors.outlook  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.connectors.gcalendar  # noqa: F401
+except ImportError:
+    pass
+
+try:
     import openjarvis.connectors.dropbox  # noqa: F401
 except ImportError:
     pass  # httpx may not be installed

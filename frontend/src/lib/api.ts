@@ -31,7 +31,7 @@ export async function initApiBase(): Promise<void> {
   }
 }
 
-const DESKTOP_API_FALLBACK = 'http://127.0.0.1:8222';
+const DESKTOP_API_FALLBACK = 'http://127.0.0.1:8000';
 
 const getSettingsApiUrl = (): string => {
   try {

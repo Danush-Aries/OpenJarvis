@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, CheckCircle2, XCircle, Cpu, Server, Database } from 'lucide-react';
 import { getSetupStatus, type SetupStatus } from '../lib/api';
-import { SetupWizard } from './setup/SetupWizard';
 
 const STEPS = [
   { key: 'ollama_ready', label: 'Inference Engine', icon: Cpu, detail: 'Starting Ollama...' },
@@ -71,25 +70,19 @@ function StepRow({
 
 export function SetupScreen({ onReady }: { onReady: () => void }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
-  const [showWizard, setShowWizard] = useState(false);
-
   const poll = useCallback(async () => {
     const s = await getSetupStatus();
     if (s) setStatus(s);
     if (s?.phase === 'ready') {
-      setTimeout(() => setShowWizard(true), 600);
+      setTimeout(() => onReady(), 600);
     }
-  }, []);
+  }, [onReady]);
 
   useEffect(() => {
     poll();
     const interval = setInterval(poll, 800);
     return () => clearInterval(interval);
   }, [poll]);
-
-  if (showWizard) {
-    return <SetupWizard onComplete={onReady} />;
-  }
 
   const activeStep: StepKey | null =
     status && !status.ollama_ready

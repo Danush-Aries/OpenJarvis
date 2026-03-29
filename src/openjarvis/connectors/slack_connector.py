@@ -25,7 +25,7 @@ from openjarvis.tools._stubs import ToolSpec
 
 _SLACK_API_BASE = "https://slack.com/api"
 _SLACK_AUTH_ENDPOINT = "https://slack.com/oauth/v2/authorize"
-_SLACK_SCOPES = "channels:history,channels:read,users:read"
+_SLACK_SCOPES = "channels:read,channels:history,groups:read,groups:history,im:read,im:history,mpim:read,mpim:history,users:read"
 _DEFAULT_CREDENTIALS_PATH = str(DEFAULT_CONFIG_DIR / "connectors" / "slack.json")
 
 # ---------------------------------------------------------------------------
@@ -59,14 +59,7 @@ def _slack_api_conversations_list(
     if cursor:
         params["cursor"] = cursor
 
-    resp = httpx.get(
-        f"{_SLACK_API_BASE}/conversations.list",
-        headers={"Authorization": f"Bearer {token}"},
-        params=params,
-        timeout=30.0,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    return _slack_api_with_retry("conversations.list", token, params)
 
 
 def _slack_api_conversations_history(
@@ -95,14 +88,7 @@ def _slack_api_conversations_history(
     if cursor:
         params["cursor"] = cursor
 
-    resp = httpx.get(
-        f"{_SLACK_API_BASE}/conversations.history",
-        headers={"Authorization": f"Bearer {token}"},
-        params=params,
-        timeout=30.0,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    return _slack_api_with_retry("conversations.history", token, params)
 
 
 def _slack_api_users_list(token: str) -> Dict[str, Any]:
@@ -118,13 +104,47 @@ def _slack_api_users_list(token: str) -> Dict[str, Any]:
     dict
         Raw API response containing ``members`` list.
     """
-    resp = httpx.get(
-        f"{_SLACK_API_BASE}/users.list",
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=30.0,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    return _slack_api_with_retry("users.list", token)
+
+
+def _slack_api_with_retry(
+    method: str,
+    token: str,
+    params: Optional[Dict[str, str]] = None,
+    max_retries: int = 3,
+    http_method: str = "GET",
+) -> Dict[str, Any]:
+    """Call a Slack API method with automatic retry on rate limits."""
+    import time as _time
+
+    for attempt in range(max_retries + 1):
+        if http_method == "POST":
+            resp = httpx.post(
+                f"{_SLACK_API_BASE}/{method}",
+                headers={"Authorization": f"Bearer {token}"},
+                json=params or {},
+                timeout=30.0,
+            )
+        else:
+            resp = httpx.get(
+                f"{_SLACK_API_BASE}/{method}",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params or {},
+                timeout=30.0,
+            )
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "5"))
+            if attempt < max_retries:
+                _time.sleep(retry_after)
+                continue
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("ok") and data.get("error") == "ratelimited":
+            if attempt < max_retries:
+                _time.sleep(5)
+                continue
+        return data
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -267,15 +287,37 @@ class SlackConnector(BaseConnector):
             for channel in channels:
                 chan_id: str = channel.get("id", "")
                 chan_name: str = channel.get("name", chan_id)
+                is_member: bool = channel.get("is_member", False)
+                is_private: bool = channel.get("is_private", False)
                 if not chan_id:
                     continue
+
+                # Auto-join public channels; skip private channels the bot isn't in
+                if not is_member:
+                    if is_private:
+                        continue  # Can't join private channels without invite
+                    # Try to join the public channel
+                    try:
+                        join_resp = _slack_api_with_retry(
+                            "conversations.join", token, {"channel": chan_id},
+                            http_method="POST",
+                        )
+                        if not join_resp.get("ok"):
+                            continue
+                    except Exception:
+                        continue
 
                 # Step 3: paginate through message history
                 history_cursor = ""
                 while True:
-                    history_resp = _slack_api_conversations_history(
-                        token, chan_id, cursor=history_cursor
-                    )
+                    try:
+                        history_resp = _slack_api_conversations_history(
+                            token, chan_id, cursor=history_cursor
+                        )
+                    except Exception:
+                        break  # Skip channels we can't read
+                    if not history_resp.get("ok", True):
+                        break  # not_in_channel or other error
                     messages: List[Dict[str, Any]] = history_resp.get("messages", [])
 
                     for msg in messages:

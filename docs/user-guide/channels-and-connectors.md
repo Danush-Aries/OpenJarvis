@@ -241,54 +241,19 @@ Same as Google Drive — use the same Google Cloud project and OAuth client.
 
 Slack serves two purposes in OpenJarvis:
 
-- **Data connector** — indexes channel messages and threads so your agent can search them
+- **Data source** — indexes channel messages, DMs, and threads so your agent can search them
 - **Messaging channel** — lets you DM your agent directly in Slack
 
-### Setup: Data Connector (read Slack messages)
+We recommend creating **one Slack app** that handles both. The App Manifest below includes all scopes needed.
 
-1. **Go to Slack App Settings:**
-   [Open Slack Apps →](https://api.slack.com/apps)
+### Quick Setup (App Manifest — recommended)
 
-2. **Create a new app:**
-   - Click "Create New App" → "From scratch"
-   - Name it (e.g. "OpenJarvis") and select your workspace
+1. **Go to [Slack App Settings →](https://api.slack.com/apps)**
 
-3. **Add Bot Token Scopes** (OAuth & Permissions → Bot Token Scopes):
+2. **Create New App → "From an app manifest"** → select your workspace
 
-   | Scope | Purpose |
-   |-------|---------|
-   | `chat:write` | Send messages |
-   | `im:write` | Open DM conversations |
-   | `im:read` | List DM conversations |
-   | `im:history` | Read DM history + receive DM events |
-   | `users:read` | Look up user info |
-   | `channels:read` | List public channels |
-   | `channels:history` | Read public channel messages |
-   | `app_mentions:read` | See @mentions of the bot |
+3. **Paste this JSON manifest** (includes all scopes for data source + messaging):
 
-4. **Install to workspace:**
-   - Click "Install to Workspace" → Authorize
-   - Copy the **Bot User OAuth Token** (starts with `xoxb-`)
-
-5. **Connect in OpenJarvis:**
-   - Desktop/Browser: Agents → **Channels** tab → Slack → paste the bot token
-   - CLI: `uv run jarvis connect slack`
-
-### Setup: Messaging Channel (DM your agent in Slack)
-
-To DM your agent and get research responses, you need Socket Mode + Event Subscriptions:
-
-1. **Enable Socket Mode:**
-   - Go to your Slack app settings → **Socket Mode** (left sidebar)
-   - Toggle **"Enable Socket Mode"** to ON
-   - Click **"Generate"** to create an App-Level Token
-   - Add the `connections:write` scope
-   - Name it anything (e.g. "socket") → Generate
-   - Copy the token (starts with `xapp-`)
-
-2. **Set up Event Subscriptions:**
-   - Go to **App Manifest** (left sidebar) — this is the most reliable method
-   - Replace the entire manifest with:
    ```json
    {
        "display_information": { "name": "OpenJarvis" },
@@ -303,43 +268,79 @@ To DM your agent and get research responses, you need Socket Mode + Event Subscr
        "oauth_config": {
            "scopes": {
                "bot": [
-                   "chat:write", "im:write", "im:read", "im:history",
-                   "users:read", "channels:read", "channels:history",
-                   "app_mentions:read", "assistant:write"
+                   "channels:read", "channels:history", "channels:join",
+                   "groups:read", "groups:history",
+                   "im:read", "im:write", "im:history",
+                   "mpim:read", "mpim:history",
+                   "chat:write",
+                   "users:read",
+                   "app_mentions:read"
                ]
-           },
-           "pkce_enabled": false
+           }
        },
        "settings": {
            "event_subscriptions": { "bot_events": ["message.im"] },
-           "org_deploy_enabled": false,
-           "socket_mode_enabled": true,
-           "token_rotation_enabled": false
+           "socket_mode_enabled": true
        }
    }
    ```
-   - Click **Save Changes**
 
-3. **Reinstall the app:**
-   - Go to **Install App** → click **"Reinstall to Workspace"**
-   - This is required after changing scopes or event subscriptions
-   - Copy the **new Bot User OAuth Token** (it may change after reinstall)
+4. **Review and click Create**
 
-4. **Connect in OpenJarvis:**
-   - Desktop/Browser: Agents → **Messaging** tab → Slack → Set Up
-   - Enter the **Bot Token** (`xoxb-...`) and **App Token** (`xapp-...`)
-   - Click Connect
+5. **Install the app:** Install App → Install to Workspace → Authorize
 
-5. **DM your agent:**
-   - In Slack, find **OpenJarvis** under Apps (or Direct Messages)
-   - If you don't see it: click **"+"** next to Direct Messages → search "OpenJarvis"
-   - Send a message → the agent responds with "Message received! Researching now..." then the full research answer
+6. **Copy the Bot Token:** Go to OAuth & Permissions → copy the **Bot User OAuth Token** (`xoxb-...`)
+
+7. **Create an App-Level Token (for DMs):**
+   - Go to Basic Information → App-Level Tokens → Generate Token
+   - Name it "socket" → add the `connections:write` scope → Generate
+   - Copy the token (`xapp-...`)
+
+8. **(Optional) Set the app icon:**
+   - Go to Basic Information → Display Information
+   - Upload the [OpenJarvis icon](https://github.com/open-jarvis/OpenJarvis/blob/main/assets/openjarvis-slack-icon.jpg)
+
+### Required Bot Token Scopes (reference)
+
+| Scope | Purpose |
+|-------|---------|
+| `channels:read` | List public channels |
+| `channels:history` | Read public channel messages |
+| `channels:join` | Auto-join public channels for indexing |
+| `groups:read` | List private channels |
+| `groups:history` | Read private channel messages |
+| `im:read` | List DM conversations |
+| `im:write` | Open DM conversations |
+| `im:history` | Read DM history + receive DM events |
+| `mpim:read` | List group DMs |
+| `mpim:history` | Read group DM messages |
+| `chat:write` | Send messages and responses |
+| `users:read` | Look up user info |
+| `app_mentions:read` | See @mentions of the bot |
+
+**App-Level Token scope:** `connections:write` (required for Socket Mode / DMs)
+
+### Connecting in OpenJarvis
+
+**As a data source** (read channel messages):
+- Desktop/Browser: Data Sources → Slack → paste the bot token (`xoxb-...`)
+- CLI: `uv run jarvis connect slack`
+
+**As a messaging channel** (DM your agent):
+- Desktop/Browser: Data Sources → Messaging Channels → Slack → Set Up
+- Enter both the **Bot Token** (`xoxb-...`) and **App Token** (`xapp-...`)
+- Or: Agents → select agent → Messaging Channels → Slack → Set Up
+
+**DM your agent:**
+- In Slack, find **OpenJarvis** under Apps (or Direct Messages)
+- If you don't see it: click "+" next to Direct Messages → search "OpenJarvis"
+- Send a message → the agent responds in a thread
 
 ### Important Notes
 
-- **Reinstall after scope changes:** Every time you add new scopes or change event subscriptions, you MUST reinstall the app. Otherwise the changes don't take effect.
-- **Don't use the Event Subscriptions UI for Request URL:** With Socket Mode enabled, you don't need a Request URL. If the Event Subscriptions page asks for one, use the **App Manifest** method instead (step 2 above).
-- **App-Level Token vs Bot Token:** These are different. The Bot Token (`xoxb-`) is for API calls. The App Token (`xapp-`) is for Socket Mode. You need both for DMs to work.
+- **Reinstall after scope changes:** Every time you add new scopes or change event subscriptions, you MUST reinstall the app.
+- **App-Level Token vs Bot Token:** The Bot Token (`xoxb-`) is for API calls. The App Token (`xapp-`) is for Socket Mode. You need both for DMs to work.
+- **Channel visibility:** The bot can only read channels it's been added to. Invite it with `/invite @OpenJarvis` in each channel you want indexed.
 - **Thread replies:** If you reply in a thread, the bot sees it. New top-level messages also work.
 
 ### Troubleshooting
@@ -351,8 +352,7 @@ To DM your agent and get research responses, you need Socket Mode + Event Subscr
 | Bot doesn't respond to DMs | Make sure Socket Mode is enabled, `message.im` event is subscribed, and the app was reinstalled after changes |
 | "missing_scope" error | Add the missing scope in OAuth & Permissions → Reinstall the app |
 | Bot not visible in Slack | Go to Install App → Reinstall to Workspace |
-| No messages found (data connector) | The bot can only see channels it's been added to. Invite it: `/invite @OpenJarvis` in the channel |
-| Event Subscriptions won't save without Request URL | Use the App Manifest method instead (see step 2) — it bypasses the URL verification |
+| No messages found (data source) | The bot can only see channels it's been added to. Invite it: `/invite @OpenJarvis` in the channel |
 | Socket Mode connects but no events received | Verify `message.im` is in the manifest's `bot_events`, reinstall the app |
 
 ---

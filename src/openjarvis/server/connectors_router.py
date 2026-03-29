@@ -282,9 +282,14 @@ def create_connectors_router():
             "status": "disconnected",
         }
 
+    # Track which connectors have a background sync running
+    _sync_threads: Dict[str, Any] = {}
+
     @router.post("/{connector_id}/sync")
     def trigger_sync(connector_id: str) -> Dict[str, Any]:
-        """Trigger an incremental sync for a connector."""
+        """Trigger a sync in the background and return immediately."""
+        import threading
+
         _ensure_connectors_registered()
         if not ConnectorRegistry.contains(connector_id):
             raise HTTPException(
@@ -298,19 +303,49 @@ def create_connectors_router():
                 detail=f"Connector '{connector_id}' is not connected",
             )
 
-        from openjarvis.connectors.pipeline import IngestionPipeline
-        from openjarvis.connectors.store import KnowledgeStore
-        from openjarvis.connectors.sync_engine import SyncEngine
+        # If already syncing, don't start another
+        existing = _sync_threads.get(connector_id)
+        if existing and existing.is_alive():
+            return {
+                "connector_id": connector_id,
+                "status": "already_syncing",
+            }
 
-        store = KnowledgeStore()
-        pipeline = IngestionPipeline(store=store)
-        engine = SyncEngine(pipeline=pipeline)
-        chunks = engine.sync(inst)
+        def _run_sync() -> None:
+            try:
+                from openjarvis.connectors.pipeline import IngestionPipeline
+                from openjarvis.connectors.store import KnowledgeStore
+                from openjarvis.connectors.sync_engine import SyncEngine
+
+                store = KnowledgeStore()
+                pipeline = IngestionPipeline(store=store)
+                engine = SyncEngine(pipeline=pipeline)
+                engine.sync(inst)
+                logger.info("Sync completed for %s", connector_id)
+            except Exception as exc:
+                error_msg = str(exc)
+                if "401" in error_msg or "Unauthorized" in error_msg:
+                    error_msg = "Authentication failed — credentials may have expired."
+                elif "403" in error_msg or "Forbidden" in error_msg:
+                    error_msg = "Permission denied — check API scopes."
+                elif "429" in error_msg or "Too Many Requests" in error_msg:
+                    error_msg = "Rate limited — wait a minute and try again."
+                elif "timeout" in error_msg.lower():
+                    error_msg = "Connection timed out."
+                logger.error("Sync failed for %s: %s", connector_id, error_msg)
+                # Store error in sync_status if connector supports it
+                try:
+                    inst._sync_error = error_msg
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_run_sync, daemon=True)
+        t.start()
+        _sync_threads[connector_id] = t
 
         return {
             "connector_id": connector_id,
-            "chunks_indexed": chunks,
-            "status": "complete",
+            "status": "started",
         }
 
     @router.get("/{connector_id}/sync")

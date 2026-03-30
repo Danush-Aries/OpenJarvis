@@ -282,8 +282,9 @@ def create_connectors_router():
             "status": "disconnected",
         }
 
-    # Track which connectors have a background sync running
+    # Track background sync state per connector
     _sync_threads: Dict[str, Any] = {}
+    _sync_state: Dict[str, Dict[str, Any]] = {}  # {connector_id: {state, error}}
 
     @router.post("/{connector_id}/sync")
     def trigger_sync(connector_id: str) -> Dict[str, Any]:
@@ -311,6 +312,9 @@ def create_connectors_router():
                 "status": "already_syncing",
             }
 
+        # Mark as syncing immediately so the UI picks it up
+        _sync_state[connector_id] = {"state": "syncing", "error": None}
+
         def _run_sync() -> None:
             try:
                 from openjarvis.connectors.pipeline import IngestionPipeline
@@ -322,6 +326,7 @@ def create_connectors_router():
                 engine = SyncEngine(pipeline=pipeline)
                 engine.sync(inst)
                 logger.info("Sync completed for %s", connector_id)
+                _sync_state[connector_id] = {"state": "complete", "error": None}
             except Exception as exc:
                 error_msg = str(exc)
                 if "401" in error_msg or "Unauthorized" in error_msg:
@@ -333,11 +338,7 @@ def create_connectors_router():
                 elif "timeout" in error_msg.lower():
                     error_msg = "Connection timed out."
                 logger.error("Sync failed for %s: %s", connector_id, error_msg)
-                # Store error in sync_status if connector supports it
-                try:
-                    inst._sync_error = error_msg
-                except Exception:
-                    pass
+                _sync_state[connector_id] = {"state": "error", "error": error_msg}
 
         t = threading.Thread(target=_run_sync, daemon=True)
         t.start()
@@ -362,13 +363,32 @@ def create_connectors_router():
             status = instance.sync_status()
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc))
+
+        # Override with router-level sync state (background thread tracking)
+        bg = _sync_state.get(connector_id, {})
+        bg_thread = _sync_threads.get(connector_id)
+        is_bg_running = bg_thread is not None and bg_thread.is_alive()
+
+        # Determine effective state
+        if is_bg_running:
+            effective_state = "syncing"
+        elif bg.get("state") == "error":
+            effective_state = "error"
+        elif status.state != "idle":
+            effective_state = status.state
+        else:
+            effective_state = status.state
+
+        # Use the bg error if the connector doesn't have one
+        effective_error = status.error or bg.get("error")
+
         return {
             "connector_id": connector_id,
-            "state": status.state,
+            "state": effective_state,
             "items_synced": status.items_synced,
             "items_total": status.items_total,
             "last_sync": (status.last_sync.isoformat() if status.last_sync else None),
-            "error": status.error,
+            "error": effective_error,
         }
 
     return router

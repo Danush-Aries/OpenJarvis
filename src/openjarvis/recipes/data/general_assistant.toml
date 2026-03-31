@@ -4,10 +4,10 @@ description = "Balanced general-purpose assistant"
 version = "0.1.0"
 
 [intelligence]
-model = "Qwen3-Coder-30B-A3B-Instruct-GGUF"
+model = "qwen3:8b"
 
 [engine]
-key = "lemonade"
+key = "ollama"
 
 [agent]
 type = "orchestrator"

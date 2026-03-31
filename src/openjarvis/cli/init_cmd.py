@@ -160,6 +160,15 @@ def _next_steps_text(engine: str, model: str = "") -> str:
             '     jarvis ask "Hello"\n\n'
             "  Run `jarvis doctor` to verify your setup."
         ),
+        "lemonade": (
+            "Next steps:\n\n"
+            "  1. Install and start Lemonade:\n"
+            "     pip install lemonade-server\n"
+            "     lemonade-server\n\n"
+            "  2. Try it out:\n"
+            '     jarvis ask "Hello"\n\n'
+            "  Run `jarvis doctor` to verify your setup."
+        ),
     }
     return steps.get(engine, steps["ollama"])
 

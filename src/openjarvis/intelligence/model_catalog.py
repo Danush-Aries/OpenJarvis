@@ -16,7 +16,7 @@ BUILTIN_MODELS: List[ModelSpec] = [
         name="Qwen3 8B",
         parameter_count_b=8.2,
         context_length=32768,
-        supported_engines=("vllm", "ollama", "llamacpp", "sglang"),
+        supported_engines=("vllm", "ollama", "llamacpp", "sglang", "lemonade"),
         provider="alibaba",
         metadata={
             "architecture": "dense",

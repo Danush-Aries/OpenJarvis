@@ -220,7 +220,11 @@ def recommend_engine(hw: HardwareInfo) -> str:
             return "vllm"
         return "ollama"
     if gpu.vendor == "amd":
-        return "vllm"
+        # Datacenter cards (MI300, MI325, MI350, MI355) → vllm; consumer → lemonade
+        amd_datacenter_keywords = ("MI300", "MI325", "MI350", "MI355")
+        if any(kw in gpu.name for kw in amd_datacenter_keywords):
+            return "vllm"
+        return "lemonade"
     return "llamacpp"
 
 
@@ -354,6 +358,13 @@ class GemmaCppEngineConfig:
     num_threads: int = 0
 
 
+@dataclass(slots=True)
+class LemonadeEngineConfig:
+    """Per-engine config for Lemonade."""
+
+    host: str = "http://localhost:8000"
+
+
 @dataclass
 class EngineConfig:
     """Inference engine settings with nested per-engine configs."""
@@ -370,6 +381,7 @@ class EngineConfig:
     uzu: UzuEngineConfig = field(default_factory=UzuEngineConfig)
     apple_fm: AppleFmEngineConfig = field(default_factory=AppleFmEngineConfig)
     gemma_cpp: GemmaCppEngineConfig = field(default_factory=GemmaCppEngineConfig)
+    lemonade: LemonadeEngineConfig = field(default_factory=LemonadeEngineConfig)
 
     # Backward-compat properties for old flat attribute names
     @property
@@ -470,6 +482,15 @@ class EngineConfig:
     @apple_fm_host.setter
     def apple_fm_host(self, value: str) -> None:
         self.apple_fm.host = value
+
+    @property
+    def lemonade_host(self) -> str:
+        """Deprecated: use ``engine.lemonade.host``."""
+        return self.lemonade.host
+
+    @lemonade_host.setter
+    def lemonade_host(self, value: str) -> None:
+        self.lemonade.host = value
 
 
 @dataclass(slots=True)

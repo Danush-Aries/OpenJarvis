@@ -8,7 +8,7 @@ export interface ConnectorMeta {
   connector_id: string;
   display_name: string;
   auth_type: 'oauth' | 'local' | 'bridge' | 'filesystem';
-  category: 'communication' | 'documents' | 'pim';
+  category: 'communication' | 'documents' | 'pim' | 'other';
   icon: string;
   color: string;
   description: string;
@@ -53,7 +53,24 @@ export type WizardStep = "pick" | "connect" | "ingest" | "ready";
 // Backward-compatible alias
 export type SourceCard = ConnectorMeta;
 
+export type ConnectorCategory = ConnectorMeta['category'];
+
 export const SOURCE_CATALOG: ConnectorMeta[] = [
+  // ── Upload / Paste ─────────────────────────────────────────────────
+  {
+    connector_id: 'upload',
+    display_name: 'Upload / Paste',
+    auth_type: 'filesystem',
+    category: 'other',
+    icon: 'FileUp',
+    color: 'text-blue-400',
+    description: 'Paste text or upload documents',
+    unitLabel: 'documents',
+    steps: [
+      { label: 'Paste text or upload files (.txt, .md, .pdf, .docx, .csv) to add them to your knowledge base.' },
+    ],
+    inputFields: [],
+  },
   // ── Communication ──────────────────────────────────────────────────
   {
     connector_id: 'gmail_imap',

@@ -120,10 +120,15 @@ def serve(
             from openjarvis.engine.multi import MultiEngine
 
             cloud = CloudEngine()
+            engine = MultiEngine([(engine_name, engine), ("cloud", cloud)])
+            engine_name = "multi"
             if cloud.health():
-                engine = MultiEngine([(engine_name, engine), ("cloud", cloud)])
-                engine_name = "multi"
                 console.print("  Cloud:  [cyan]enabled[/cyan] (API keys detected)")
+            else:
+                console.print(
+                    "  Cloud:  [yellow]keys set but packages missing[/yellow] "
+                    "(run: uv sync --extra inference-cloud --extra inference-google)"
+                )
         except Exception as exc:
             logger.debug("Cloud engine init failed: %s", exc)
 

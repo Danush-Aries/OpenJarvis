@@ -74,7 +74,7 @@ class TestRecommendEngine:
             platform="linux",
             gpu=GpuInfo(vendor="amd", name="Radeon RX 7900 XTX"),
         )
-        assert recommend_engine(hw) == "vllm"
+        assert recommend_engine(hw) == "lemonade"
 
 
 class TestTomlLoading:

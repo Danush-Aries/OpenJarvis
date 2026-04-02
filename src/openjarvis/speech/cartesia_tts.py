@@ -42,6 +42,7 @@ def _cartesia_synthesize(
                 "encoding": "mp3" if output_format == "mp3" else "pcm_f32le",
             },
             "language": "en",
+            **({"speed": speed} if speed != 1.0 else {}),
         },
         timeout=120.0,
     )

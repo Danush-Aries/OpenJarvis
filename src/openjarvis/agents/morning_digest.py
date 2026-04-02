@@ -57,11 +57,22 @@ class MorningDigestAgent(ToolUsingAgent):
             f"{persona_text}\n\n"
             f"Today is {now.strftime('%A, %B %d, %Y')}. "
             f"The time is {now.strftime('%I:%M %p')} in {self._timezone}.\n\n"
-            f"Generate a morning briefing covering these sections in order: "
+            f"Generate a morning briefing covering: "
             f"{', '.join(self._sections)}.\n\n"
-            "Be concise — the entire briefing should be readable in 2-3 minutes "
-            "and listenable in under 5 minutes when spoken aloud.\n\n"
-            "Format your response in clean markdown with section headers."
+            "CRITICAL RULES:\n"
+            "1. ONLY report facts that appear in the provided data. "
+            "Do NOT invent, hallucinate, or embellish any information.\n"
+            "2. Do NOT describe actions you are taking (e.g. 'I have adjusted "
+            "the lights', 'I have queued a delivery'). You are reporting, not "
+            "acting.\n"
+            "3. Do NOT use any markdown formatting — no #, ##, *, -, or bullet "
+            "points. This text will be read aloud as speech.\n"
+            "4. Use natural spoken transitions between sections like "
+            "'Regarding your health', 'Moving on to your calendar', "
+            "'As for your messages'.\n"
+            "5. Be concise — under 200 words total. State facts directly.\n"
+            "6. If a section has no data, skip it entirely rather than "
+            "making something up."
         )
 
     def _resolve_sources(self) -> List[str]:
@@ -108,7 +119,12 @@ class MorningDigestAgent(ToolUsingAgent):
                 content=(
                     f"Here is the collected data from my sources:\n\n"
                     f"{collected_data}\n\n"
-                    f"Please synthesize my morning briefing."
+                    f"Synthesize my morning briefing. REMEMBER:\n"
+                    f"- Start with 'Good morning, sir.' (or afternoon/evening)\n"
+                    f"- NO markdown, NO emojis, NO bullet points, NO headers\n"
+                    f"- Plain spoken English only — this is read aloud\n"
+                    f"- Only state facts from the data above\n"
+                    f"- Under 200 words"
                 ),
             ),
         ]
@@ -117,12 +133,20 @@ class MorningDigestAgent(ToolUsingAgent):
         narrative = self._strip_think_tags(result.get("content", ""))
 
         # Step 3: Generate audio via TTS
+        # Strip any markdown that slipped through (##, *, -, etc.)
+        import re
+
+        tts_text = re.sub(r"^#{1,6}\s+", "", narrative, flags=re.MULTILINE)
+        tts_text = re.sub(r"^\s*[-*•]\s+", "", tts_text, flags=re.MULTILINE)
+        tts_text = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", tts_text)
+        tts_text = tts_text.strip()
+
         tts_call = ToolCall(
             id="digest-tts-1",
             name="text_to_speech",
             arguments=json.dumps(
                 {
-                    "text": narrative,
+                    "text": tts_text,
                     "voice_id": self._voice_id,
                     "backend": self._tts_backend,
                 }

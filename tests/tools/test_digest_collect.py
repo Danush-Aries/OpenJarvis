@@ -44,7 +44,9 @@ def test_digest_collect_executes():
             result = tool.execute(sources=["gmail"], hours_back=24)
 
     assert result.success is True
-    assert "gmail (1 items)" in result.content
+    assert "=== MESSAGES ===" in result.content
+    assert "[gmail] From: alice@example.com" in result.content
+    assert "Team standup" in result.content
     assert result.metadata["total_items"] == 1
 
 

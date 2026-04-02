@@ -7,7 +7,7 @@ to make them trivially mockable in tests.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
@@ -283,7 +283,7 @@ class GCalendarConnector(BaseConnector):
     def sync(
         self,
         *,
-        since: Optional[datetime] = None,  # noqa: ARG002 — reserved for future use
+        since: Optional[datetime] = None,
         cursor: Optional[str] = None,
     ) -> Iterator[Document]:
         """Yield :class:`Document` objects for Google Calendar events.
@@ -294,7 +294,8 @@ class GCalendarConnector(BaseConnector):
         Parameters
         ----------
         since:
-            Not yet used (filtering is done server-side via ``timeMin``).
+            Only return events starting after this datetime.  Defaults to
+            24 hours ago when ``None``.
         cursor:
             ``nextPageToken`` from a previous sync to resume pagination.
         """
@@ -310,6 +311,11 @@ class GCalendarConnector(BaseConnector):
         calendars_resp = _gcal_api_calendars_list(token)
         calendars: List[Dict[str, Any]] = calendars_resp.get("items", [])
 
+        # Default to 24 hours ago so we don't dump the entire calendar history
+        if since is None:
+            since = datetime.now() - timedelta(days=1)
+        time_min = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         synced = 0
 
         for calendar in calendars:
@@ -322,7 +328,8 @@ class GCalendarConnector(BaseConnector):
             while True:
                 try:
                     events_resp = _gcal_api_events_list(
-                        token, calendar_id, page_token=page_token
+                        token, calendar_id, page_token=page_token,
+                        time_min=time_min,
                     )
                 except httpx.HTTPStatusError:
                     break

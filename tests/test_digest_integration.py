@@ -35,7 +35,11 @@ def test_full_digest_pipeline(tmp_path):
     # Mock tool results
     collect_result = ToolResult(
         tool_name="digest_collect",
-        content="## gmail (3 items)\n## oura (1 items)\n## gcalendar (2 items)",
+        content=(
+            "=== HEALTH ===\n[oura] Sleep — April 1: score 78, avg HR 58 bpm\n\n"
+            "=== MESSAGES ===\n[gmail] From: alice@co.com — \"Q3 Review\" (2h ago)\n\n"
+            "=== CALENDAR ===\n[gcalendar] 10:30 AM — Team Standup (30 min)\n"
+        ),
         success=True,
         metadata={"total_items": 6},
     )

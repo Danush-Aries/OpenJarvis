@@ -13,8 +13,11 @@ __all__ = ["Attachment", "BaseConnector", "Document", "KnowledgeStore", "SyncSta
 # Auto-register built-in connectors
 import openjarvis.connectors.obsidian  # noqa: F401
 
-# gmail (REST API / OAuth) is not registered — use gmail_imap instead.
-# The REST API connector requires a full OAuth flow that isn't wired up yet.
+try:
+    import openjarvis.connectors.gmail  # noqa: F401
+except ImportError:
+    pass
+
 try:
     import openjarvis.connectors.gmail_imap  # noqa: F401
 except ImportError:

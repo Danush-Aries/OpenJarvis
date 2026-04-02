@@ -32,7 +32,7 @@ def test_morning_digest_run(tmp_path):
     # Mock collect result
     mock_collect_result = ToolResult(
         tool_name="digest_collect",
-        content="## gmail (2 items)\n...",
+        content="=== MESSAGES ===\n[gmail] From: alice@co.com — \"Budget\" (1h ago)\n",
         success=True,
         metadata={"total_items": 2},
     )

@@ -197,8 +197,6 @@ def compose_run(name: str, query: tuple[str, ...], output_json: bool) -> None:
             agent_kwargs = {}
             if kwargs.get("system_prompt"):
                 agent_kwargs["system_prompt"] = kwargs["system_prompt"]
-            if kwargs.get("max_turns"):
-                agent_kwargs["max_turns"] = kwargs["max_turns"]
             if kwargs.get("temperature"):
                 agent_kwargs["temperature"] = kwargs["temperature"]
 
@@ -207,7 +205,9 @@ def compose_run(name: str, query: tuple[str, ...], output_json: bool) -> None:
             if output_json:
                 import json as json_mod
 
-                if isinstance(result, str):
+                if isinstance(result, dict):
+                    click.echo(json_mod.dumps(result, indent=2, default=str))
+                elif isinstance(result, str):
                     click.echo(json_mod.dumps({"content": result}, indent=2))
                 else:
                     click.echo(
@@ -220,7 +220,12 @@ def compose_run(name: str, query: tuple[str, ...], output_json: bool) -> None:
                         )
                     )
             else:
-                content = result if isinstance(result, str) else result.content
+                if isinstance(result, dict):
+                    content = result.get("content", "")
+                elif isinstance(result, str):
+                    content = result
+                else:
+                    content = result.content
                 click.echo(content)
         finally:
             system.close()

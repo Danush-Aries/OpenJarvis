@@ -70,12 +70,14 @@ def get_provider(model: str) -> str | None:
 
 
 def is_cloud_model(model: str) -> bool:
+    """Return True if the model is served by a cloud provider."""
     return get_provider(model) is not None
 
 
 # ---------------------------------------------------------------------------
 # Message conversion
 # ---------------------------------------------------------------------------
+
 
 def _to_openai_msgs(messages: Sequence[Message]) -> list[dict[str, Any]]:
     out = []
@@ -122,6 +124,7 @@ def _to_google_contents(messages: Sequence[Message]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Streaming generators
 # ---------------------------------------------------------------------------
+
 
 async def _stream_openai(
     model: str,
@@ -269,6 +272,7 @@ async def _stream_google(
 # Local (Ollama) direct streaming — bypasses engine routing entirely
 # ---------------------------------------------------------------------------
 
+
 def _ollama_host() -> str:
     return os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 
@@ -327,6 +331,7 @@ async def list_local_models() -> list[str]:
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 async def stream_cloud(
     model: str,
     messages: Sequence[Message],
@@ -352,7 +357,9 @@ async def stream_cloud(
         keys = _load_keys()
         api_key = keys.get("OPENROUTER_API_KEY", "")
         if not api_key:
-            raise ValueError("OPENROUTER_API_KEY not set — add it in the Cloud Models tab")
+            raise ValueError(
+                "OPENROUTER_API_KEY not set — add it in the Cloud Models tab"
+            )
         async for token in _stream_openai(
             model,
             messages,

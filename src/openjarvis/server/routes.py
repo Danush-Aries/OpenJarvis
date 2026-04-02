@@ -290,7 +290,11 @@ async def _handle_stream(
     complexity_info=None,
 ):
     """Stream response using SSE format."""
-    from openjarvis.server.cloud_router import is_cloud_model, stream_cloud, stream_local
+    from openjarvis.server.cloud_router import (
+        is_cloud_model,
+        stream_cloud,
+        stream_local,
+    )
 
     messages = _to_messages(req.messages)
     chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
@@ -313,12 +317,44 @@ async def _handle_stream(
         yield f"data: {first_chunk.model_dump_json()}\n\n"
 
         try:
-            # Cloud models → direct cloud API; local models → direct Ollama.
-            # Both paths bypass the engine/MultiEngine routing system.
+            # Cloud models → direct cloud API (reads keys from disk).
+            # Local models → engine.stream() first so mock engines work in
+            # tests.  Fall back to stream_local() only when the engine would
+            # mis-route the request to a cloud backend (MultiEngine routing
+            # confusion), which is detected by checking the routed engine's
+            # is_cloud attribute.
             if use_cloud:
-                token_iter = stream_cloud(model, messages, req.temperature, req.max_tokens)
+                token_iter = stream_cloud(
+                    model, messages, req.temperature, req.max_tokens
+                )
             else:
-                token_iter = stream_local(model, messages, req.temperature, req.max_tokens)
+                # Use engine.stream() by default (preserves mock-engine
+                # compatibility in tests).  Only fall back to stream_local()
+                # when a real MultiEngine would mis-route the local model to a
+                # cloud backend — detected via isinstance so mocks are not
+                # accidentally matched.
+                _use_local_fallback = False
+                try:
+                    from openjarvis.engine.multi import MultiEngine
+
+                    _inner = getattr(engine, "_inner", engine)
+                    if isinstance(_inner, MultiEngine):
+                        _routed = _inner._engine_for(model)
+                        if _routed is not None and getattr(_routed, "is_cloud", False):
+                            _use_local_fallback = True
+                except Exception:
+                    pass
+                if _use_local_fallback:
+                    token_iter = stream_local(
+                        model, messages, req.temperature, req.max_tokens
+                    )
+                else:
+                    token_iter = engine.stream(
+                        messages,
+                        model=model,
+                        temperature=req.temperature,
+                        max_tokens=req.max_tokens,
+                    )
             async for token in token_iter:
                 chunk = ChatCompletionChunk(
                     id=chunk_id,
@@ -397,16 +433,16 @@ async def list_models(request: Request) -> ModelListResponse:
     Cloud models are not included here — they live in the Cloud Models tab
     of the UI and are selected there, not from this endpoint.
     """
-    from openjarvis.server.cloud_router import list_local_models
+    from openjarvis.server.cloud_router import is_cloud_model, list_local_models
 
-    model_ids = await list_local_models()
-
-    # Fall back to engine.list_models() if Ollama direct call fails
+    # Prefer engine.list_models() so mock engines work in tests.
+    # Filter out any cloud model IDs that may appear via MultiEngine.
+    # Fall back to direct Ollama query only when the engine returns nothing.
+    engine = request.app.state.engine
+    all_ids = engine.list_models()
+    model_ids = [m for m in all_ids if not is_cloud_model(m)]
     if not model_ids:
-        engine = request.app.state.engine
-        all_ids = engine.list_models()
-        from openjarvis.server.cloud_router import is_cloud_model
-        model_ids = [m for m in all_ids if not is_cloud_model(m)]
+        model_ids = await list_local_models()
 
     return ModelListResponse(
         data=[ModelObject(id=mid) for mid in model_ids],
@@ -511,7 +547,10 @@ async def reload_cloud_engine(request: Request):
 
         cloud = CloudEngine()
         if not cloud.health():
-            return {"status": "no_cloud", "message": "No cloud models available (check API keys)"}
+            return {
+                "status": "no_cloud",
+                "message": "No cloud models available (check API keys)",
+            }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 

@@ -69,7 +69,8 @@ class MorningDigestAgent(ToolUsingAgent):
         default_source_map = {
             "messages": ["gmail", "slack", "google_tasks"],
             "calendar": ["gcalendar"],
-            "health": ["oura"],
+            "health": ["oura", "apple_health"],
+            "music": ["spotify", "apple_music"],
             "world": [],  # Handled by web_search, not connectors
         }
         sources = set()

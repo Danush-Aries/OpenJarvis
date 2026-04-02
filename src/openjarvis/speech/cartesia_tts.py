@@ -70,6 +70,10 @@ class CartesiaTTSBackend(TTSBackend):
         if not self._api_key:
             raise RuntimeError("CARTESIA_API_KEY not set")
 
+        # Default to "British Butler" voice — warm, authoritative, Jarvis-like
+        if not voice_id:
+            voice_id = "a0e99841-438c-4a64-b679-ae501e7d6091"
+
         audio = _cartesia_synthesize(
             self._api_key,
             text,

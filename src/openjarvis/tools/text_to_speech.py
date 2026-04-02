@@ -53,6 +53,9 @@ class TextToSpeechTool(BaseTool):
         )
 
     def execute(self, **params: Any) -> ToolResult:
+        # Ensure TTS backends are registered
+        import openjarvis.speech  # noqa: F401
+
         text = params.get("text", "")
         voice_id = params.get("voice_id", "")
         backend_key = params.get("backend", "cartesia")

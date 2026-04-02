@@ -211,6 +211,30 @@ class JarvisSystem:
             agent_kwargs["session_store"] = self.session_store
             agent_kwargs["memory_backend"] = self.memory_backend
 
+        # Inject DigestConfig when instantiating the morning_digest agent
+        if agent_name == "morning_digest" and hasattr(self.config, "digest"):
+            dc = self.config.digest
+            section_sources = {}
+            for s in dc.sections:
+                sc = getattr(dc, s, None)
+                if sc and hasattr(sc, "sources"):
+                    section_sources[s] = sc.sources
+            agent_kwargs.update({
+                "persona": dc.persona,
+                "sections": dc.sections,
+                "section_sources": section_sources,
+                "timezone": dc.timezone,
+                "voice_id": dc.voice_id,
+                "tts_backend": dc.tts_backend,
+            })
+            # Ensure digest agent always has its required tools
+            from openjarvis.tools.digest_collect import DigestCollectTool
+            from openjarvis.tools.text_to_speech import TextToSpeechTool
+
+            digest_tools = [DigestCollectTool(), TextToSpeechTool()]
+            existing = agent_kwargs.get("tools", [])
+            agent_kwargs["tools"] = digest_tools + list(existing)
+
         try:
             ag = agent_cls(self.engine, self.model, **agent_kwargs)
         except TypeError:
@@ -304,6 +328,7 @@ class JarvisSystem:
                 for tr in getattr(result, "tool_results", [])
             ],
             "turns": getattr(result, "turns", 1),
+            "metadata": getattr(result, "metadata", {}),
             "model": self.model,
             "engine": self.engine_key,
             "_telemetry": _telemetry,

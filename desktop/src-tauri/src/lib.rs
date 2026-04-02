@@ -649,7 +649,12 @@ async fn boot_backend(backend: SharedBackend, status: SharedStatus) {
         s.detail = "Installing dependencies...".into();
     }
     let _ = tokio::process::Command::new(&uv_bin)
-        .args(["sync", "--extra", "server"])
+        .args([
+            "sync",
+            "--extra", "server",
+            "--extra", "inference-cloud",
+            "--extra", "inference-google",
+        ])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .current_dir(root)
@@ -1123,6 +1128,15 @@ async fn save_cloud_key(key_name: String, key_value: String) -> Result<(), Strin
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
+
+    // Tell the running server to hot-reload its cloud engine so the user
+    // doesn't need to restart the app after entering an API key.
+    let reload_url = format!("http://127.0.0.1:{}/v1/cloud/reload", JARVIS_PORT);
+    let _ = reqwest::Client::new()
+        .post(&reload_url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await;
 
     Ok(())
 }

@@ -290,8 +290,18 @@ async def _handle_stream(
     complexity_info=None,
 ):
     """Stream response using SSE format."""
+    from openjarvis.server.cloud_router import (
+        is_cloud_model,
+        stream_cloud,
+        stream_local,
+    )
+
     messages = _to_messages(req.messages)
     chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+
+    # Route directly to the right backend — bypasses engine routing entirely
+    # so broken MultiEngine state can never misdirect requests.
+    use_cloud = is_cloud_model(model)
 
     async def generate():
         # Send role chunk first
@@ -307,13 +317,45 @@ async def _handle_stream(
         yield f"data: {first_chunk.model_dump_json()}\n\n"
 
         try:
-            # Stream content
-            async for token in engine.stream(
-                messages,
-                model=model,
-                temperature=req.temperature,
-                max_tokens=req.max_tokens,
-            ):
+            # Cloud models → direct cloud API (reads keys from disk).
+            # Local models → engine.stream() first so mock engines work in
+            # tests.  Fall back to stream_local() only when the engine would
+            # mis-route the request to a cloud backend (MultiEngine routing
+            # confusion), which is detected by checking the routed engine's
+            # is_cloud attribute.
+            if use_cloud:
+                token_iter = stream_cloud(
+                    model, messages, req.temperature, req.max_tokens
+                )
+            else:
+                # Use engine.stream() by default (preserves mock-engine
+                # compatibility in tests).  Only fall back to stream_local()
+                # when a real MultiEngine would mis-route the local model to a
+                # cloud backend — detected via isinstance so mocks are not
+                # accidentally matched.
+                _use_local_fallback = False
+                try:
+                    from openjarvis.engine.multi import MultiEngine
+
+                    _inner = getattr(engine, "_inner", engine)
+                    if isinstance(_inner, MultiEngine):
+                        _routed = _inner._engine_for(model)
+                        if _routed is not None and getattr(_routed, "is_cloud", False):
+                            _use_local_fallback = True
+                except Exception:
+                    pass
+                if _use_local_fallback:
+                    token_iter = stream_local(
+                        model, messages, req.temperature, req.max_tokens
+                    )
+                else:
+                    token_iter = engine.stream(
+                        messages,
+                        model=model,
+                        temperature=req.temperature,
+                        max_tokens=req.max_tokens,
+                    )
+            async for token in token_iter:
                 chunk = ChatCompletionChunk(
                     id=chunk_id,
                     model=model,
@@ -365,17 +407,11 @@ async def _handle_stream(
         )
         finish_dict = _json.loads(finish_data.model_dump_json())
 
-        # Pull usage from the engine if it tracked it during streaming
-        raw_engine = engine
-        # Unwrap InstrumentedEngine if present
-        if hasattr(raw_engine, "_inner"):
-            raw_engine = raw_engine._inner
-        # Unwrap MultiEngine if present
-        if hasattr(raw_engine, "_engine_for"):
-            raw_engine = raw_engine._engine_for(model)
-        stream_usage = getattr(raw_engine, "_last_stream_usage", None)
-        if isinstance(stream_usage, dict) and stream_usage.get("total_tokens", 0) > 0:
-            finish_dict["usage"] = stream_usage
+        # Tag the finish chunk with the correct engine label.
+        # We use the routing decision (use_cloud) directly rather than
+        # unwrapping the engine chain, which can be in a broken state.
+        finish_dict.setdefault("telemetry", {})
+        finish_dict["telemetry"]["engine"] = "cloud" if use_cloud else "ollama"
 
         if complexity_info is not None:
             finish_dict["complexity"] = complexity_info.model_dump()
@@ -392,9 +428,22 @@ async def _handle_stream(
 
 @router.get("/v1/models")
 async def list_models(request: Request) -> ModelListResponse:
-    """List available models from the engine."""
+    """List locally installed models (Ollama).
+
+    Cloud models are not included here — they live in the Cloud Models tab
+    of the UI and are selected there, not from this endpoint.
+    """
+    from openjarvis.server.cloud_router import is_cloud_model, list_local_models
+
+    # Prefer engine.list_models() so mock engines work in tests.
+    # Filter out any cloud model IDs that may appear via MultiEngine.
+    # Fall back to direct Ollama query only when the engine returns nothing.
     engine = request.app.state.engine
-    model_ids = engine.list_models()
+    all_ids = engine.list_models()
+    model_ids = [m for m in all_ids if not is_cloud_model(m)]
+    if not model_ids:
+        model_ids = await list_local_models()
+
     return ModelListResponse(
         data=[ModelObject(id=mid) for mid in model_ids],
     )
@@ -470,6 +519,63 @@ async def delete_model(model_name: str, request: Request):
         client.close()
 
     return {"status": "deleted", "model": model_name}
+
+
+@router.post("/v1/cloud/reload")
+async def reload_cloud_engine(request: Request):
+    """Hot-reload cloud API keys and (re-)initialize the cloud engine.
+
+    Called by the desktop app immediately after the user saves a cloud API
+    key so that cloud models become available without a full app restart.
+    """
+    import os
+    from pathlib import Path
+
+    # Re-read ~/.openjarvis/cloud-keys.env and update the running process env.
+    keys_path = Path.home() / ".openjarvis" / "cloud-keys.env"
+    if keys_path.exists():
+        for raw_line in keys_path.read_text().splitlines():
+            line = raw_line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip()
+
+    # Try to build a fresh CloudEngine.
+    try:
+        from openjarvis.engine.cloud import CloudEngine
+        from openjarvis.engine.multi import MultiEngine
+
+        cloud = CloudEngine()
+        if not cloud.health():
+            return {
+                "status": "no_cloud",
+                "message": "No cloud models available (check API keys)",
+            }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+    # Locate the innermost engine, working through InstrumentedEngine layers.
+    outer = request.app.state.engine
+    inner = getattr(outer, "_inner", outer)
+
+    if isinstance(inner, MultiEngine):
+        # Replace or insert the cloud entry in the existing MultiEngine.
+        new_engines = [(k, e) for k, e in inner._engines if k != "cloud"]
+        new_engines.append(("cloud", cloud))
+        inner._engines = new_engines
+        inner._refresh_map()
+    else:
+        # Wrap the existing engine (which may be security-wrapped) with a new
+        # MultiEngine that includes the cloud engine.
+        engine_name = getattr(request.app.state, "engine_name", "local")
+        new_multi = MultiEngine([(engine_name, inner), ("cloud", cloud)])
+        if hasattr(outer, "_inner"):
+            outer._inner = new_multi
+        else:
+            request.app.state.engine = new_multi
+        request.app.state.engine_name = "multi"
+
+    return {"status": "ok", "message": "Cloud engine reloaded"}
 
 
 @router.get("/v1/savings")

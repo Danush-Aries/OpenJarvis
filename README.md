@@ -79,19 +79,32 @@ uv run jarvis ask "What is the capital of France?"
 
 ## Starter Configs
 
-Copy a config to `~/.openjarvis/config.toml` to get started with a pre-built use case. Each config includes the model, agent, tools, and connectors you need.
-
-| Use Case | Config | What it does |
-|----------|--------|-------------|
-| **Morning Digest** | [`morning-digest-mac.toml`](configs/openjarvis/examples/morning-digest-mac.toml) | Daily spoken briefing from your email, calendar, health tracker, and news — delivered by a Jarvis-style AI voice |
-| **Morning Digest (minimal)** | [`morning-digest-minimal.toml`](configs/openjarvis/examples/morning-digest-minimal.toml) | Just Gmail + Calendar, runs on any machine |
-| **Morning Digest (Linux)** | [`morning-digest-linux.toml`](configs/openjarvis/examples/morning-digest-linux.toml) | For Linux servers with GPU |
+Install any preset with one command:
 
 ```bash
-# Example: set up Morning Digest on Mac
-cp configs/openjarvis/examples/morning-digest-mac.toml ~/.openjarvis/config.toml
+jarvis init --preset morning-digest-mac   # or any preset below
+```
+
+| Preset | Use Case | What it does |
+|--------|----------|-------------|
+| `morning-digest-mac` | Daily Briefing (Mac) | Spoken briefing from email, calendar, health, news with Jarvis voice |
+| `morning-digest-linux` | Daily Briefing (Linux) | Same, with vLLM support for GPU servers |
+| `morning-digest-minimal` | Daily Briefing (minimal) | Just Gmail + Calendar, runs on any machine |
+| `deep-research` | Research Assistant | Multi-hop research across indexed docs with citations |
+| `code-assistant` | Code Companion | Agent with code execution, file I/O, and shell access |
+| `scheduled-monitor` | Persistent Monitor | Stateful agent that runs on a schedule with memory |
+| `chat-simple` | Simple Chat | Lightweight conversation, no tools needed |
+
+```bash
+# Example: Morning Digest on Mac
+jarvis init --preset morning-digest-mac
 jarvis connect gdrive          # one OAuth flow covers Gmail, Calendar, Tasks
 jarvis digest --fresh           # generate and play your first briefing
+
+# Example: Deep Research
+jarvis init --preset deep-research
+jarvis memory index ./docs/    # index your documents
+jarvis ask "Summarize all emails about Project X"
 ```
 
 ### Built-in Agents

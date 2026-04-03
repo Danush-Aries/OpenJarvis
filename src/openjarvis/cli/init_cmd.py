@@ -264,6 +264,23 @@ def _do_download(engine: str, model: str, spec, console: Console) -> None:
     default=False,
     help="Include Morning Digest config section.",
 )
+@click.option(
+    "--preset",
+    type=click.Choice(
+        [
+            "morning-digest-mac",
+            "morning-digest-linux",
+            "morning-digest-minimal",
+            "deep-research",
+            "code-assistant",
+            "scheduled-monitor",
+            "chat-simple",
+        ],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Use a pre-built starter config instead of generating one.",
+)
 def init(
     force: bool,
     config: Optional[Path],
@@ -273,6 +290,7 @@ def init(
     skip_scan: bool = False,
     host: Optional[str] = None,
     enable_digest: bool = False,
+    preset: Optional[str] = None,
 ) -> None:
     """Detect hardware and generate ~/.openjarvis/config.toml."""
     console = Console()
@@ -283,6 +301,42 @@ def init(
         )
         console.print("Use [bold]--force[/bold] to overwrite.")
         raise SystemExit(1)
+
+    # Handle --preset: copy a starter config and return early
+    if preset:
+
+        examples_dir = (
+            Path(__file__).resolve().parents[2]
+            / "configs"
+            / "openjarvis"
+            / "examples"
+        )
+        # Also check installed package location
+        if not examples_dir.exists():
+            examples_dir = (
+                Path(__file__).resolve().parents[3]
+                / "configs"
+                / "openjarvis"
+                / "examples"
+            )
+        preset_path = examples_dir / f"{preset}.toml"
+        if not preset_path.exists():
+            console.print(f"[red]Preset '{preset}' not found.[/red]")
+            console.print(
+                f"  Looked in: {examples_dir}"
+            )
+            raise SystemExit(1)
+        DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        DEFAULT_CONFIG_PATH.write_text(preset_path.read_text())
+        console.print(
+            f"[green]Preset '{preset}' installed to "
+            f"{DEFAULT_CONFIG_PATH}[/green]"
+        )
+        console.print(
+            "\n  Edit the config to customize, then run "
+            "[bold]jarvis doctor[/bold] to verify."
+        )
+        return
 
     console.print("[bold]Detecting hardware...[/bold]")
     hw = detect_hardware()

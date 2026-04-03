@@ -257,6 +257,13 @@ def _do_download(engine: str, model: str, spec, console: Console) -> None:
     default=None,
     help="Remote engine host URL (e.g. http://192.168.1.50:11434).",
 )
+@click.option(
+    "--digest",
+    "enable_digest",
+    is_flag=True,
+    default=False,
+    help="Include Morning Digest config section.",
+)
 def init(
     force: bool,
     config: Optional[Path],
@@ -265,6 +272,7 @@ def init(
     no_download: bool = False,
     skip_scan: bool = False,
     host: Optional[str] = None,
+    enable_digest: bool = False,
 ) -> None:
     """Detect hardware and generate ~/.openjarvis/config.toml."""
     console = Console()
@@ -382,6 +390,43 @@ def init(
             border_style="green",
         )
     )
+    # Append Morning Digest section if requested
+    if enable_digest:
+        digest_section = """
+# ─── Morning Digest ─────────────────────────────────────────
+[digest]
+enabled = true
+schedule = "0 7 * * *"
+timezone = "America/Los_Angeles"
+persona = "jarvis"
+honorific = "sir"
+tts_backend = "cartesia"
+voice_id = "c8f7835e-28a3-4f0c-80d7-c1302ac62aae"
+voice_speed = 1.2
+sections = ["health", "messages", "calendar", "world"]
+
+[digest.health]
+sources = ["oura"]
+
+[digest.messages]
+sources = ["gmail", "google_tasks", "imessage"]
+
+[digest.calendar]
+sources = ["gcalendar"]
+
+[digest.world]
+sources = ["hackernews", "news_rss"]
+"""
+        target = config if config else DEFAULT_CONFIG_PATH
+        existing = target.read_text()
+        target.write_text(existing + digest_section)
+        toml_content = target.read_text()
+        console.print(
+            "[green]Morning Digest config added.[/green] "
+            "Run [bold]jarvis connect gdrive[/bold] to connect "
+            "Google services, then [bold]jarvis digest --fresh[/bold]."
+        )
+
     console.print("[green]Config written successfully.[/green]")
 
     # Create default memory files (skip if they already exist)

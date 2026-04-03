@@ -223,8 +223,11 @@ export function CommandPalette() {
 
     useAppStore.getState().addLogEntry({
       timestamp: Date.now(), level: 'info', category: 'model',
-      message: `${provider.name} API key ${value ? 'saved' : 'removed'}. Restart the app for cloud models to appear.`,
+      message: `${provider.name} API key ${value ? 'saved' : 'removed'}. Refreshing model list…`,
     });
+
+    // Refresh the model list so cloud models appear immediately.
+    await refreshModels();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

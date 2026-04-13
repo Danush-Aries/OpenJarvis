@@ -117,7 +117,7 @@ Key comparisons:
 | terminalbench | TerminalBench | varies | 20 | Implemented |
 | toolcall15 | ToolCall-15 | 15 | 15 (all) | TODO |
 | livecodebench | LiveCodeBench | ~100 | 20 | TODO |
-| liveresearch | LiveResearchBench | 100 | 10 | TODO |
+| liveresearch | DeepResearchBench | 100 | 10 | TODO |
 
 ## Metrics Captured Per Run
 - accuracy (benchmark-specific)
@@ -138,7 +138,7 @@ Key comparisons:
 ### Phase 1a: Implement missing benchmarks
 - [ ] ToolCall-15 integration
 - [ ] LiveCodeBench integration
-- [ ] LiveResearchBench integration
+- [ ] DeepResearchBench integration
 - [ ] Wire telemetry capture to all eval runs
 
 ### Phase 1b: Run cloud baselines (no GPU needed)
@@ -148,7 +148,7 @@ Key comparisons:
       TauBench Telecom (75%), GAIA (34.29%)
 - [x] Gemini 3.1 Pro — PinchBench (78.26%), TauBench A+R (58.33%),
       TauBench Telecom (77.5%), GAIA (47.06%)
-- [ ] All 3 cloud baselines — ToolCall-15, LiveCodeBench, LiveResearchBench
+- [ ] All 3 cloud baselines — ToolCall-15, LiveCodeBench, DeepResearchBench
 - [ ] All 3 cloud baselines — TerminalBench
 
 ### Phase 1c: Run local models (GPU required)
@@ -230,7 +230,7 @@ Training targets:
 - Qwen 35B: TauBench telecom + GAIA running
 - ToolCall-15 integration: TODO
 - LiveCodeBench integration: TODO
-- LiveResearchBench integration: TODO
+- DeepResearchBench integration: TODO
 - Telemetry wiring: TODO
 
 ### Blocked

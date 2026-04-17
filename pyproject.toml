@@ -96,6 +96,7 @@ channel-mastodon = ["Mastodon.py>=1.8"]
 channel-xmpp = ["slixmpp>=1.8"]
 channel-rocketchat = ["rocketchat-API>=1.30"]
 channel-zulip = ["zulip>=0.9"]
+channel-twitter = ["httpx>=0.27"]
 channel-twitch = ["twitchio>=2.6"]
 channel-nostr = ["pynostr>=0.6"]
 channel-twilio = ["twilio>=9.0"]
@@ -104,7 +105,6 @@ channel-gmail = [
     "google-auth-oauthlib>=1.0",
     "google-auth-httplib2>=0.2",
 ]
-channel-twitter = ["tweepy>=4.14"]
 browser = ["playwright>=1.40"]
 media = ["openai>=1.30"]
 pdf = ["pdfplumber>=0.10"]

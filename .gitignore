@@ -45,11 +45,14 @@ Thumbs.db
 *.db
 *.jsonl
 *.npz
+*.log
 results/
 logs/
 traces/
 coding_task_*
 get-pip.py
+# Junk from mocked-path tests that write to their mock's __repr__ as a path
+MagicMock/
 
 # MkDocs build output
 site/
@@ -91,18 +94,7 @@ src/openjarvis/channels/whatsapp_baileys_bridge/node_modules/
 
 # SQLite in-memory artifacts
 :memory:
-MagicMock/
 
 # Second Repos
 Inline/
 scratch/
-
-# SQLite in-memory artifacts
-:memory:
-MagicMock/
-
-# Second Repos
-Inline/
-
-# Local git worktrees
-.worktrees/

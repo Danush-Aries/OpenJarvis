@@ -82,18 +82,18 @@ type AgentStatus =
   | 'stalled';
 
 const STATUS_COLOR: Record<AgentStatus, string> = {
-  idle: '#22c55e',
-  running: '#3b82f6',
-  paused: '#6b7280',
-  error: '#ef4444',
-  archived: '#6b7280',
-  needs_attention: '#f59e0b',
-  budget_exceeded: '#f97316',
-  stalled: '#eab308',
+  idle: 'var(--color-success)',
+  running: 'var(--color-accent)',
+  paused: 'var(--color-text-tertiary)',
+  error: 'var(--color-error)',
+  archived: 'var(--color-text-tertiary)',
+  needs_attention: 'var(--color-warning)',
+  budget_exceeded: 'var(--color-warning)',
+  stalled: 'var(--color-warning)',
 };
 
 function statusColor(s: string): string {
-  return STATUS_COLOR[s as AgentStatus] || '#6b7280';
+  return STATUS_COLOR[s as AgentStatus] || 'var(--color-text-tertiary)';
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -793,7 +793,7 @@ function LaunchWizard({
                 onClick={() => selectTemplate(tpl)}
                 className="text-left p-4 rounded-lg transition-all items-start"
                 style={{ border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.background = 'rgba(124,58,237,0.06)'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--color-accent-purple) 6%, transparent)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-bg-secondary)'; }}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -804,7 +804,7 @@ function LaunchWizard({
                 {(tpl as any).tools && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {((tpl as any).tools as string[]).slice(0, 4).map((t: string) => (
-                      <span key={t} className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa' }}>{t}</span>
+                      <span key={t} className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--color-accent-purple) 12%, transparent)', color: 'var(--color-accent-purple)' }}>{t}</span>
                     ))}
                     {((tpl as any).tools as string[]).length > 4 && (
                       <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: 'var(--color-text-tertiary)' }}>+{((tpl as any).tools as string[]).length - 4}</span>
@@ -817,7 +817,7 @@ function LaunchWizard({
               onClick={() => selectTemplate(null)}
               className="text-left p-4 rounded-lg transition-all items-start"
               style={{ border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.background = 'rgba(124,58,237,0.06)'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-accent)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--color-accent-purple) 6%, transparent)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-bg-secondary)'; }}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -871,7 +871,7 @@ function LaunchWizard({
               style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
             />
             {wizard.instruction.includes('[') && (
-              <p className="text-[10px] mt-1" style={{ color: '#f59e0b' }}>
+              <p className="text-[10px] mt-1" style={{ color: 'var(--color-warning)' }}>
                 Replace the [bracketed text] with your own values
               </p>
             )}
@@ -951,7 +951,7 @@ function LaunchWizard({
                           className="px-1.5 py-1 rounded text-xs font-medium"
                           style={{
                             background: isSelected ? 'var(--color-accent)' : 'var(--color-bg)',
-                            color: isSelected ? '#fff' : 'var(--color-text-tertiary)',
+                            color: isSelected ? 'var(--color-on-accent)' : 'var(--color-text-tertiary)',
                             border: `1px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
                           }}
                         >
@@ -1013,7 +1013,7 @@ function LaunchWizard({
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {wizard.selectedTools.map((t) => (
-                  <span key={t} className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa' }}>{t}</span>
+                  <span key={t} className="text-xs px-2 py-1 rounded" style={{ background: 'color-mix(in srgb, var(--color-accent-purple) 12%, transparent)', color: 'var(--color-accent-purple)' }}>{t}</span>
                 ))}
               </div>
             </div>
@@ -1102,7 +1102,7 @@ function LaunchWizard({
               onClick={handleLaunch}
               disabled={launching || !wizard.name.trim()}
               className="flex-1 py-2.5 rounded-lg text-sm font-semibold"
-              style={{ background: 'var(--color-accent)', color: '#fff', opacity: launching || !wizard.name.trim() ? 0.5 : 1 }}
+              style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)', opacity: launching || !wizard.name.trim() ? 0.5 : 1 }}
             >
               {launching ? 'Creating...' : 'Launch Agent'}
             </button>
@@ -1163,7 +1163,7 @@ function OverflowMenu({
               setOpen(false);
             }}
             className="w-full text-left px-3 py-1.5 text-xs cursor-pointer flex items-center gap-2"
-            style={{ color: '#ef4444' }}
+            style={{ color: 'var(--color-error)' }}
           >
             <Trash2 size={12} /> Delete
           </button>
@@ -1256,10 +1256,10 @@ function AgentCard({
                 width: `${Math.min(100, ((agent.total_cost ?? 0) / (agent.config?.max_cost as number)) * 100)}%`,
                 background:
                   ((agent.total_cost ?? 0) / (agent.config?.max_cost as number)) > 0.9
-                    ? '#ef4444'
+                    ? 'var(--color-error)'
                     : ((agent.total_cost ?? 0) / (agent.config?.max_cost as number)) > 0.75
-                      ? '#f59e0b'
-                      : '#22c55e',
+                      ? 'var(--color-warning)'
+                      : 'var(--color-success)',
               }}
             />
           </div>
@@ -1306,7 +1306,7 @@ function AgentCard({
           <button
             onClick={() => onResume(agent.id)}
             className="p-1 rounded cursor-pointer"
-            style={{ color: '#22c55e' }}
+            style={{ color: 'var(--color-success)' }}
             title="Resume"
           >
             <Play size={13} />
@@ -1316,7 +1316,7 @@ function AgentCard({
           <button
             onClick={() => onRecover(agent.id)}
             className="flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer"
-            style={{ background: '#ef444420', color: '#ef4444' }}
+            style={{ background: 'var(--color-error)20', color: 'var(--color-error)' }}
             title="Recover agent"
           >
             <AlertTriangle size={11} /> Recover
@@ -1376,7 +1376,7 @@ function AgentInstructionSection({ agent, onAgentUpdated }: { agent: ManagedAgen
             style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
           />
           <div className="flex gap-2">
-            <button onClick={save} className="text-xs px-3 py-1 rounded font-medium cursor-pointer" style={{ background: 'var(--color-accent)', color: '#fff' }}>Save</button>
+            <button onClick={save} className="text-xs px-3 py-1 rounded font-medium cursor-pointer" style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)' }}>Save</button>
             <button onClick={() => setEditing(false)} className="text-xs px-3 py-1 rounded cursor-pointer" style={{ color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)' }}>Cancel</button>
           </div>
         </div>
@@ -1461,10 +1461,10 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
   }
 
   const modelStatusDot = modelAvailable === 'available'
-    ? '#22c55e'
+    ? 'var(--color-success)'
     : modelAvailable === 'unavailable'
-      ? '#ef4444'
-      : '#888';
+      ? 'var(--color-error)'
+      : 'var(--color-text-tertiary)';
 
   const rows: [string, React.ReactNode][] = [
     ['Intelligence', editingModel ? (
@@ -1482,7 +1482,7 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
           {models.map((m) => {
             const loaded = isModelLoaded(m);
             return (
-              <option key={m} value={m} style={!loaded ? { color: '#888' } : undefined}>
+              <option key={m} value={m} style={!loaded ? { color: 'var(--color-text-tertiary)' } : undefined}>
                 {m}{!loaded ? ' (not loaded)' : ''}
               </option>
             );
@@ -1508,14 +1508,14 @@ function AgentConfigGrid({ agent, onAgentUpdated }: { agent: ManagedAgent; onAge
         />
         <span style={{ color: 'var(--color-text)' }}>{currentModel}</span>
         {modelAvailable === 'unavailable' && (
-          <span className="text-xs" style={{ color: '#ef4444' }}>Not available</span>
+          <span className="text-xs" style={{ color: 'var(--color-error)' }}>Not available</span>
         )}
         <button
           onClick={startEditingModel}
           className="text-xs px-2 py-0.5 rounded cursor-pointer"
           style={{
-            color: modelAvailable === 'unavailable' ? '#ef4444' : 'var(--color-accent)',
-            border: `1px solid ${modelAvailable === 'unavailable' ? '#ef4444' : 'var(--color-accent)'}`,
+            color: modelAvailable === 'unavailable' ? 'var(--color-error)' : 'var(--color-accent)',
+            border: `1px solid ${modelAvailable === 'unavailable' ? 'var(--color-error)' : 'var(--color-accent)'}`,
             opacity: 0.8,
           }}
         >
@@ -1933,7 +1933,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
                 className="max-w-[75%] px-3 py-2 rounded-lg text-sm"
                 style={{
                   background: msg.direction === 'user_to_agent' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                  color: msg.direction === 'user_to_agent' ? '#fff' : 'var(--color-text)',
+                  color: msg.direction === 'user_to_agent' ? 'var(--color-on-accent)' : 'var(--color-text)',
                   border: msg.direction === 'agent_to_user' ? '1px solid var(--color-border)' : 'none',
                 }}
               >
@@ -2035,7 +2035,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
             onClick={() => handleSend('immediate')}
             disabled={sending || waitingForResponse || !input.trim()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer font-medium"
-            style={{ background: 'var(--color-accent)', color: '#fff', opacity: sending || !input.trim() ? 0.5 : 1 }}
+            style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)', opacity: sending || !input.trim() ? 0.5 : 1 }}
           >
             <Send size={13} /> Send
           </button>
@@ -2142,7 +2142,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
               key={c.connector_id}
               style={{
                 background: 'var(--color-bg-secondary)',
-                border: '1px solid #2a5a3a',
+                border: '1px solid color-mix(in srgb, var(--color-success) 22%, transparent)',
                 borderRadius: 6,
                 overflow: 'hidden',
                 gridColumn: isReconnecting ? '1 / -1' : undefined,
@@ -2157,7 +2157,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                   <div style={{ fontSize: 14, fontWeight: 600 }}>
                     {c.display_name}
                   </div>
-                  <div style={{ fontSize: 12, color: c.chunks > 0 ? '#4ade80' : '#f59e0b' }}>
+                  <div style={{ fontSize: 12, color: c.chunks > 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
                     {c.chunks > 0
                       ? `${c.chunks.toLocaleString()} ${unit}`
                       : 'Connected — no data synced yet'}
@@ -2182,7 +2182,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                   padding: 12,
                 }}>
                   <div style={{
-                    fontSize: 12, color: '#f59e0b',
+                    fontSize: 12, color: 'var(--color-warning)',
                     marginBottom: 8,
                   }}>
                     Re-enter credentials to reconnect this source.
@@ -2198,7 +2198,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                       }}
                     >
                       <div style={{
-                        color: '#7c3aed', fontSize: 10,
+                        color: 'var(--color-accent-purple)', fontSize: 10,
                         fontWeight: 600, marginBottom: 3,
                       }}>
                         STEP {i + 1}
@@ -2212,7 +2212,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
-                            color: '#60a5fa', fontSize: 11,
+                            color: 'var(--color-accent)', fontSize: 11,
                             textDecoration: 'underline',
                           }}
                         >
@@ -2280,7 +2280,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                     </div>
                   </div>
                   <span style={{
-                    color: '#7c3aed', fontSize: 11, fontWeight: 500,
+                    color: 'var(--color-accent-purple)', fontSize: 11, fontWeight: 500,
                   }}>
                     {isExpanded ? '\u2715 Close' : '+ Add'}
                   </span>
@@ -2303,7 +2303,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                         }}
                       >
                         <div style={{
-                          color: '#7c3aed', fontSize: 10,
+                          color: 'var(--color-accent-purple)', fontSize: 10,
                           fontWeight: 600, marginBottom: 3,
                         }}>
                           STEP {i + 1}
@@ -2319,7 +2319,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{
-                              color: '#60a5fa', fontSize: 11,
+                              color: 'var(--color-accent)', fontSize: 11,
                               textDecoration: 'underline',
                             }}
                           >
@@ -2410,8 +2410,8 @@ function InlineConnectForm({
         disabled={loading || !allFilled}
         style={{
           width: '100%', padding: 8,
-          background: loading || !allFilled ? '#444' : '#7c3aed',
-          color: 'white', border: 'none',
+          background: loading || !allFilled ? 'var(--color-disabled-bg)' : 'var(--color-accent-purple)',
+          color: 'var(--color-on-accent)', border: 'none',
           borderRadius: 6, fontSize: 12, cursor: 'pointer',
         }}
       >
@@ -2498,19 +2498,19 @@ function SendBlueWebhookStep({
   return (
     <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
       <div style={{
-        background: '#052e16', border: '1px solid #2a5a3a',
+        background: 'color-mix(in srgb, var(--color-success) 10%, var(--color-bg))', border: '1px solid color-mix(in srgb, var(--color-success) 22%, transparent)',
         borderRadius: 6, padding: 12, marginBottom: 12, textAlign: 'center',
       }}>
-        <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, marginBottom: 4 }}>
+        <div style={{ fontSize: 11, color: 'var(--color-success)', fontWeight: 600, marginBottom: 4 }}>
           {'\u2713'} Your agent is now reachable via iMessage / SMS
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80' }}>{selectedNumber}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-success)' }}>{selectedNumber}</div>
       </div>
 
       {/* Webhook / ngrok step */}
       <div style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>4</span>
+          <span style={{ background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>4</span>
           <span style={{ fontSize: 12, fontWeight: 600 }}>Set up webhook to receive texts</span>
         </div>
         <div style={{
@@ -2519,7 +2519,7 @@ function SendBlueWebhookStep({
           padding: '8px 10px', marginBottom: 10,
           background: 'var(--color-bg-secondary)',
           borderRadius: 6,
-          borderLeft: '3px solid var(--color-accent, #7c3aed)',
+          borderLeft: '3px solid var(--color-accent, var(--color-accent-purple))',
         }}>
           <div><strong>1.</strong> Open a terminal and run: <code style={{ color: 'var(--color-accent)', background: 'var(--color-bg)', padding: '1px 4px', borderRadius: 3 }}>ngrok http 8000</code></div>
           <div style={{ marginTop: 4 }}><strong>2.</strong> Copy the <code style={{ color: 'var(--color-accent)', background: 'var(--color-bg)', padding: '1px 4px', borderRadius: 3 }}>https://</code> forwarding URL</div>
@@ -2541,8 +2541,8 @@ function SendBlueWebhookStep({
             disabled={!webhookUrl.trim() || webhookStatus === 'registering'}
             style={{
               fontSize: 11, padding: '7px 14px', whiteSpace: 'nowrap' as const,
-              background: webhookStatus === 'done' ? '#22c55e' : '#7c3aed',
-              color: 'white', border: 'none', borderRadius: 5,
+              background: webhookStatus === 'done' ? 'var(--color-success)' : 'var(--color-accent-purple)',
+              color: 'var(--color-on-accent)', border: 'none', borderRadius: 5,
               cursor: 'pointer', fontWeight: 600,
               opacity: !webhookUrl.trim() || webhookStatus === 'registering' ? 0.5 : 1,
             }}
@@ -2554,17 +2554,17 @@ function SendBlueWebhookStep({
           </button>
         </div>
         {webhookStatus === 'done' && (
-          <div style={{ fontSize: 11, color: '#22c55e', marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--color-success)', marginTop: 6 }}>
             Webhook registered! Incoming texts will be forwarded to your agent.
           </div>
         )}
         {webhookStatus === 'error' && (
-          <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--color-error)', marginTop: 6 }}>
             Failed to register. Check your ngrok URL and try again.
           </div>
         )}
         <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 8 }}>
-          Don't have ngrok? <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>Download it free</a>
+          Don't have ngrok? <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}>Download it free</a>
         </div>
       </div>
     </div>
@@ -2623,12 +2623,12 @@ function SendBlueWizard({
 
   const cardStyle: React.CSSProperties = {
     background: 'var(--color-bg-secondary)',
-    border: isActive ? '1px solid #2a5a3a' : '1px dashed var(--color-border)',
+    border: isActive ? '1px solid color-mix(in srgb, var(--color-success) 22%, transparent)' : '1px dashed var(--color-border)',
     borderRadius: 8, marginBottom: 10, overflow: 'hidden',
   };
 
   const btnPrimary: React.CSSProperties = {
-    fontSize: 12, padding: '7px 18px', background: '#7c3aed', color: 'white',
+    fontSize: 12, padding: '7px 18px', background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)',
     border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 600,
   };
 
@@ -2719,7 +2719,7 @@ function SendBlueWizard({
           <span style={{ fontSize: 18, marginRight: 10 }}>{'\uD83D\uDCAC'}</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>iMessage / SMS</div>
-            <div style={{ fontSize: 11, color: healthy ? '#4ade80' : '#f59e0b' }}>
+            <div style={{ fontSize: 11, color: healthy ? 'var(--color-success)' : 'var(--color-warning)' }}>
               {healthy ? `Active on ${activeNumber}` : `Disconnected — ${activeNumber}`}
             </div>
           </div>
@@ -2734,8 +2734,8 @@ function SendBlueWizard({
               </button>
             )}
             <span style={{
-              background: healthy ? '#2a5a3a' : '#78350f',
-              color: healthy ? '#4ade80' : '#f59e0b',
+              background: healthy ? 'color-mix(in srgb, var(--color-success) 22%, transparent)' : 'color-mix(in srgb, var(--color-warning) 18%, var(--color-bg))',
+              color: healthy ? 'var(--color-success)' : 'var(--color-warning)',
               padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
             }}>{healthy ? 'Active' : 'Disconnected'}</span>
             <button onClick={() => setExpanded(true)} style={btnSecondary}>
@@ -2755,11 +2755,11 @@ function SendBlueWizard({
           <span style={{ fontSize: 18, marginRight: 10 }}>{'\uD83D\uDCAC'}</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>iMessage / SMS</div>
-            <div style={{ fontSize: 11, color: '#4ade80' }}>Active on {activeNumber}</div>
+            <div style={{ fontSize: 11, color: 'var(--color-success)' }}>Active on {activeNumber}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setExpanded(false)} style={btnSecondary}>Collapse</button>
-            <button onClick={() => onRemove(binding!.id)} style={{ ...btnSecondary, color: '#f87171' }}>Remove</button>
+            <button onClick={() => onRemove(binding!.id)} style={{ ...btnSecondary, color: 'var(--color-error)' }}>Remove</button>
           </div>
         </div>
         <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
@@ -2786,7 +2786,7 @@ function SendBlueWizard({
               {testSent ? 'Sent!' : 'Send Test'}
             </button>
           </div>
-          {error && <div style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>{error}</div>}
+          {error && <div style={{ color: 'var(--color-error)', fontSize: 11, marginTop: 6 }}>{error}</div>}
         </div>
       </div>
     );
@@ -2809,7 +2809,7 @@ function SendBlueWizard({
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); setStep(step === 'idle' ? 'creds' : 'idle'); }}
-          style={{ fontSize: 10, padding: '3px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}
+          style={{ fontSize: 10, padding: '3px 12px', background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}
         >
           {step === 'idle' ? 'Set Up' : 'Cancel'}
         </button>
@@ -2819,7 +2819,7 @@ function SendBlueWizard({
       {(step === 'creds' || step === 'verifying') && (
         <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
+            <span style={{ background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</span>
             <span style={{ fontSize: 12, fontWeight: 600 }}>Create a SendBlue account</span>
           </div>
           <button
@@ -2830,12 +2830,12 @@ function SendBlueWizard({
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
+            <span style={{ background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</span>
             <span style={{ fontSize: 12, fontWeight: 600 }}>Paste your API credentials</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
             Go to your{' '}
-            <a href="https://dashboard.sendblue.co/api-credentials" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
+            <a href="https://dashboard.sendblue.co/api-credentials" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}>
               SendBlue API Credentials page
             </a>{' '}
             and copy the API Key and API Secret.
@@ -2854,7 +2854,7 @@ function SendBlueWizard({
             <input value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} placeholder="Your API secret key" type="password" style={inputStyle} />
           </div>
 
-          {error && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{error}</div>}
+          {error && <div style={{ color: 'var(--color-error)', fontSize: 11, marginBottom: 8 }}>{error}</div>}
 
           <button
             onClick={handleVerify}
@@ -2870,12 +2870,12 @@ function SendBlueWizard({
       {(step === 'verified' || step === 'connecting') && (
         <div style={{ borderTop: '1px solid var(--color-border)', padding: 14, background: 'var(--color-bg)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ background: '#22c55e', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{'\u2713'}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#4ade80' }}>Credentials verified</span>
+            <span style={{ background: 'var(--color-success)', color: 'var(--color-on-accent)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{'\u2713'}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)' }}>Credentials verified</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ background: '#7c3aed', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>3</span>
+            <span style={{ background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>3</span>
             <span style={{ fontSize: 12, fontWeight: 600 }}>Your agent's phone number</span>
           </div>
 
@@ -2894,13 +2894,13 @@ function SendBlueWizard({
             </div>
           ) : numbers.length === 1 ? (
             <div style={{
-              background: 'var(--color-bg-secondary)', border: '1px solid #2a5a3a',
+              background: 'var(--color-bg-secondary)', border: '1px solid color-mix(in srgb, var(--color-success) 22%, transparent)',
               borderRadius: 6, padding: '10px 12px', marginBottom: 12,
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <span style={{ fontSize: 20 }}>{'\uD83D\uDCF1'}</span>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>{selectedNumber}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-success)' }}>{selectedNumber}</div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>This will be your agent's phone number</div>
               </div>
             </div>
@@ -2910,7 +2910,7 @@ function SendBlueWizard({
                 fontSize: 11, color: 'var(--color-text-secondary)',
                 marginBottom: 8, lineHeight: 1.5,
                 padding: '8px 10px', background: 'var(--color-bg-secondary)',
-                borderRadius: 6, borderLeft: '3px solid #7c3aed',
+                borderRadius: 6, borderLeft: '3px solid var(--color-accent-purple)',
               }}>
                 Copy the phone number shown under <strong>"Send from"</strong> in your SendBlue dashboard
                 and paste it below. On the free tier this is a shared number.
@@ -2927,7 +2927,7 @@ function SendBlueWizard({
             </div>
           )}
 
-          {error && <div style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{error}</div>}
+          {error && <div style={{ color: 'var(--color-error)', fontSize: 11, marginBottom: 8 }}>{error}</div>}
 
           <button
             onClick={handleConnect}
@@ -3045,7 +3045,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
             style={{
               background: 'var(--color-bg-secondary)',
               border: binding
-                ? '1px solid #2a5a3a'
+                ? '1px solid color-mix(in srgb, var(--color-success) 22%, transparent)'
                 : '1px dashed var(--color-border)',
               borderRadius: 8, marginBottom: 10,
               overflow: 'hidden',
@@ -3061,7 +3061,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{ch.name}</div>
                 <div style={{
                   fontSize: 11,
-                  color: binding ? '#4ade80' : 'var(--color-text-secondary)',
+                  color: binding ? 'var(--color-success)' : 'var(--color-text-secondary)',
                 }}>
                   {binding ? ch.activeLabel(cfg) : ch.description}
                 </div>
@@ -3069,7 +3069,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
               {binding ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{
-                    background: '#2a5a3a', color: '#4ade80',
+                    background: 'color-mix(in srgb, var(--color-success) 22%, transparent)', color: 'var(--color-success)',
                     padding: '2px 8px', borderRadius: 10,
                     fontSize: 10, fontWeight: 600,
                   }}>Active</span>
@@ -3092,7 +3092,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
                   }}
                   style={{
                     fontSize: 10, padding: '3px 12px',
-                    background: '#7c3aed', color: 'white',
+                    background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)',
                     border: 'none', borderRadius: 5,
                     cursor: 'pointer', fontWeight: 600,
                   }}
@@ -3134,7 +3134,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
                   padding: '8px 10px',
                   background: 'var(--color-bg-secondary)',
                   borderRadius: 6,
-                  borderLeft: '3px solid var(--color-accent, #7c3aed)',
+                  borderLeft: '3px solid var(--color-accent, var(--color-accent-purple))',
                 }}>
                   {ch.setupSteps.map((step, i) => {
                     if (step.startsWith('COPYABLE:')) {
@@ -3156,7 +3156,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
                               style={{
                                 position: 'sticky', float: 'right', top: 0,
                                 fontSize: 10, padding: '2px 8px',
-                                background: '#7c3aed', color: 'white',
+                                background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)',
                                 border: 'none', borderRadius: 3,
                                 cursor: 'pointer', fontWeight: 600,
                               }}
@@ -3199,7 +3199,7 @@ function MessagingTab({ agentId }: { agentId: string }) {
                   disabled={loading || !canConnect}
                   style={{
                     fontSize: 12, padding: '7px 20px',
-                    background: '#7c3aed', color: 'white',
+                    background: 'var(--color-accent-purple)', color: 'var(--color-on-accent)',
                     border: 'none', borderRadius: 5,
                     cursor: 'pointer', fontWeight: 600,
                     opacity: loading || !canConnect ? 0.5 : 1,
@@ -3250,8 +3250,8 @@ function LearningTab({ agentId, learningEnabled }: { agentId: string; learningEn
           <span
             className="text-xs px-2 py-0.5 rounded-full"
             style={{
-              background: learningEnabled ? '#22c55e20' : 'var(--color-bg-secondary)',
-              color: learningEnabled ? '#22c55e' : 'var(--color-text-tertiary)',
+              background: learningEnabled ? 'var(--color-success)20' : 'var(--color-bg-secondary)',
+              color: learningEnabled ? 'var(--color-success)' : 'var(--color-text-tertiary)',
             }}
           >
             {learningEnabled ? 'Enabled' : 'Disabled'}
@@ -3263,7 +3263,7 @@ function LearningTab({ agentId, learningEnabled }: { agentId: string; learningEn
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium"
           style={{
             background: 'var(--color-accent)',
-            color: '#fff',
+            color: 'var(--color-on-accent)',
             opacity: triggering ? 0.6 : 1,
           }}
         >
@@ -3354,11 +3354,11 @@ function LogsTab({ agentId }: { agentId: string }) {
   ].sort((a, b) => b.ts - a.ts);
 
   const learningEventColor = (eventType: string) => {
-    if (eventType === 'query_start') return '#3b82f6';
-    if (eventType === 'query_complete') return '#22c55e';
-    if (eventType === 'tool_call') return '#f59e0b';
-    if (eventType === 'tool_result') return '#8b5cf6';
-    if (eventType === 'query_error') return '#ef4444';
+    if (eventType === 'query_start') return 'var(--color-accent)';
+    if (eventType === 'query_complete') return 'var(--color-success)';
+    if (eventType === 'tool_call') return 'var(--color-warning)';
+    if (eventType === 'tool_result') return 'var(--color-accent-purple)';
+    if (eventType === 'query_error') return 'var(--color-error)';
     return 'var(--color-text-secondary)';
   };
 
@@ -3442,7 +3442,7 @@ function LogsTab({ agentId }: { agentId: string }) {
                   <div className="flex items-center gap-2">
                     <span
                       className="w-2 h-2 rounded-full inline-block"
-                      style={{ background: t.outcome === 'success' ? '#22c55e' : '#ef4444' }}
+                      style={{ background: t.outcome === 'success' ? 'var(--color-success)' : 'var(--color-error)' }}
                     />
                     <span style={{ color: 'var(--color-text)' }}>{t.outcome}</span>
                     <span
@@ -3455,10 +3455,10 @@ function LogsTab({ agentId }: { agentId: string }) {
                       <span
                         className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                         style={{
-                          background: errorDetail.error_type === 'fatal' ? '#ef444420' :
-                            errorDetail.error_type === 'escalate' ? '#f59e0b20' : '#3b82f620',
-                          color: errorDetail.error_type === 'fatal' ? '#ef4444' :
-                            errorDetail.error_type === 'escalate' ? '#f59e0b' : '#3b82f6',
+                          background: errorDetail.error_type === 'fatal' ? 'var(--color-error)20' :
+                            errorDetail.error_type === 'escalate' ? 'var(--color-warning)20' : 'var(--color-accent)20',
+                          color: errorDetail.error_type === 'fatal' ? 'var(--color-error)' :
+                            errorDetail.error_type === 'escalate' ? 'var(--color-warning)' : 'var(--color-accent)',
                         }}
                       >
                         {errorDetail.error_type}
@@ -3649,7 +3649,8 @@ export function AgentsPage() {
     ] as const;
 
     return (
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-6 py-10">
+        <div className="max-w-5xl mx-auto">
         {/* Back button */}
         <button
           onClick={() => setSelectedAgentId(null)}
@@ -3680,7 +3681,7 @@ export function AgentsPage() {
             {detailTab === 'interact' ? (
               <span
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
-                style={{ background: '#22c55e20', color: '#22c55e', border: '1px solid #22c55e40' }}
+                style={{ background: 'var(--color-success)20', color: 'var(--color-success)', border: '1px solid var(--color-success)40' }}
               >
                 <MessageSquare size={13} /> Chat ready — just type below
               </span>
@@ -3688,7 +3689,7 @@ export function AgentsPage() {
               <button
                 onClick={() => handleRun(selectedAgent.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer font-medium"
-                style={{ background: 'var(--color-accent)', color: '#fff' }}
+                style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)' }}
               >
                 <Zap size={13} /> Run Now
               </button>
@@ -3706,7 +3707,7 @@ export function AgentsPage() {
               <button
                 onClick={() => handleResume(selectedAgent.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer"
-                style={{ background: '#22c55e20', color: '#22c55e', border: '1px solid #22c55e40' }}
+                style={{ background: 'var(--color-success)20', color: 'var(--color-success)', border: '1px solid var(--color-success)40' }}
               >
                 <Play size={13} /> Resume
               </button>
@@ -3715,7 +3716,7 @@ export function AgentsPage() {
               <button
                 onClick={() => handleRecover(selectedAgent.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer"
-                style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef444440' }}
+                style={{ background: 'var(--color-error)20', color: 'var(--color-error)', border: '1px solid var(--color-error)40' }}
               >
                 <AlertTriangle size={13} /> Recover
               </button>
@@ -3729,7 +3730,7 @@ export function AgentsPage() {
                 }
               }}
               className="p-1.5 rounded-lg cursor-pointer transition-colors"
-              style={{ color: '#ef4444', background: '#ef444415' }}
+              style={{ color: 'var(--color-error)', background: 'var(--color-error)15' }}
               title="Delete agent"
             >
               <Trash2 size={15} />
@@ -3852,11 +3853,11 @@ export function AgentsPage() {
                         <p style={sectionTitle}>Local Utilization</p>
                         <div className="flex gap-5">
                           <div>
-                            <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>{fmtFlops}</p>
+                            <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-success)' }}>{fmtFlops}</p>
                             <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Compute</p>
                           </div>
                           <div>
-                            <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>{energyKj.toFixed(2)} kJ</p>
+                            <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-success)' }}>{energyKj.toFixed(2)} kJ</p>
                             <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Energy</p>
                           </div>
                         </div>
@@ -3870,7 +3871,7 @@ export function AgentsPage() {
                             const cost = (inTok / 1e6) * p.inPer1M + (outTok / 1e6) * p.outPer1M;
                             return (
                               <div key={p.label}>
-                                <p className="text-xl font-bold leading-none" style={{ color: '#22c55e' }}>${cost.toFixed(4)}</p>
+                                <p className="text-xl font-bold leading-none" style={{ color: 'var(--color-success)' }}>${cost.toFixed(4)}</p>
                                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>{p.label}</p>
                               </div>
                             );
@@ -3971,6 +3972,7 @@ export function AgentsPage() {
         {detailTab === 'logs' && (
           <LogsTab agentId={selectedAgent.id} />
         )}
+        </div>
       </div>
     );
   }
@@ -3978,7 +3980,8 @@ export function AgentsPage() {
   // ── List View ───────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto px-6 py-10">
+      <div className="max-w-5xl mx-auto">
       {/* Launch wizard modal */}
       {showWizard && (
         <LaunchWizard
@@ -3991,29 +3994,34 @@ export function AgentsPage() {
         />
       )}
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--color-text)' }}>
-          Agents
-        </h1>
-        <button
-          onClick={() => agentManagerAvailable && setShowWizard(true)}
-          disabled={agentManagerAvailable === false}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{
-            background: agentManagerAvailable === false ? 'var(--color-bg-tertiary)' : 'var(--color-accent)',
-            color: agentManagerAvailable === false ? 'var(--color-text-tertiary)' : '#fff',
-          }}
-        >
-          <Plus size={15} /> New Agent
-        </button>
-      </div>
+      <header className="mb-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
+            Agents
+          </h1>
+          <button
+            onClick={() => agentManagerAvailable && setShowWizard(true)}
+            disabled={agentManagerAvailable === false}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: agentManagerAvailable === false ? 'var(--color-bg-tertiary)' : 'var(--color-accent)',
+              color: agentManagerAvailable === false ? 'var(--color-text-tertiary)' : 'var(--color-on-accent)',
+            }}
+          >
+            <Plus size={15} /> New Agent
+          </button>
+        </div>
+        <p className="text-sm mt-2 max-w-2xl" style={{ color: 'var(--color-text-secondary)' }}>
+          Long-running autonomous agents that can monitor sources, run tasks on a schedule, and message you through connected channels.
+        </p>
+      </header>
 
       {agentManagerAvailable === false && (
         <div
           className="mx-4 mt-2 px-4 py-3 rounded-lg flex items-center gap-3 text-sm"
           style={{
             background: 'var(--color-accent-amber-subtle)',
-            border: '1px solid rgba(245, 158, 11, 0.2)',
+            border: '1px solid color-mix(in srgb, var(--color-warning) 20%, transparent)',
             color: 'var(--color-accent-amber)',
           }}
         >
@@ -4062,13 +4070,14 @@ export function AgentsPage() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               background: agentManagerAvailable === false ? 'var(--color-bg-tertiary)' : 'var(--color-accent)',
-              color: agentManagerAvailable === false ? 'var(--color-text-tertiary)' : '#fff',
+              color: agentManagerAvailable === false ? 'var(--color-text-tertiary)' : 'var(--color-on-accent)',
             }}
           >
             <Plus size={15} /> Launch your first agent
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

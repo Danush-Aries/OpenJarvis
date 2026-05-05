@@ -117,6 +117,7 @@ speech = ["faster-whisper>=1.0"]
 speech-deepgram = ["deepgram-sdk>=3.0"]
 eval-wandb = ["wandb>=0.17"]
 eval-sheets = ["gspread>=6.0", "google-auth>=2.0"]
+framework-comparison = ["polars>=1.0"]
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
@@ -152,6 +153,7 @@ markers = [
     "macos15: requires macOS 15+ (Sequoia) for Apple FM",
     "slow: long-running test",
     "live_channel: requires real channel credentials (env vars)",
+    "live_external: requires HERMES_AGENT_PATH and OPENCLAW_PATH; spawns real foreign-framework subprocesses",
 ]
 
 [tool.ruff]

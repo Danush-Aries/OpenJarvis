@@ -29,7 +29,7 @@ The H100 smoke run validated the default Llama Pearl model end to end through
 `jarvis mine start`, vLLM `/v1/models`, OpenJarvis inference routing, Pearl
 gateway template refresh, and `jarvis mine validate-model`.
 
-The Qwen and Gemma targets remain planned:
+The Qwen targets and smaller Gemma target remain planned:
 
 - `pearl-ai/Qwen3.5-9B-pearl`, `pearl-ai/Qwen3.6-27B-pearl`, and
   `pearl-ai/Gemma-4-E4B-it-pearl` are not publicly available artifacts yet.
@@ -39,6 +39,26 @@ The Qwen and Gemma targets remain planned:
   A local cache experiment proved the processor can be loaded only after
   injecting metadata from `google/gemma-4-31B-it`; that is not sufficient for
   OpenJarvis promotion because a clean user install would still fail.
+
+PR #323 added a local staging path for original checkpoint conversion and H100
+runtime validation. Current local evidence:
+
+- `google/gemma-4-31B-it` converted to
+  `/tmp/openjarvis-h100/converted/Gemma-4-31B-it-pearl-experimental`.
+  The local artifact passes `jarvis mine inspect-model`, starts through
+  `jarvis mine start --local-model-path`, exposes
+  `pearl-ai/Gemma-4-31B-it-pearl` at `/v1/models`, completes a chat prompt,
+  and passes `jarvis mine validate-model --allow-planned`. Validation artifact:
+  `/tmp/openjarvis-h100/converted/Gemma-4-31B-it-pearl-experimental-validate.json`.
+- `Qwen/Qwen3.5-9B` converted to
+  `/tmp/openjarvis-h100/converted/Qwen3.5-9B-pearl-experimental`.
+  The local artifact passes `jarvis mine inspect-model`, starts Pearl gateway,
+  resolves `Qwen3_5ForConditionalGeneration`, selects Pearl kernels, loads all
+  four safetensors shards, exposes `pearl-ai/Qwen3.5-9B-pearl` at `/v1/models`,
+  completes a chat prompt, and passes `jarvis mine validate-model
+  --allow-planned`. Required validation flags: `--gdn-prefill-backend triton`
+  and a 4096-token context. Validation artifact:
+  `/tmp/openjarvis-h100/converted/Qwen3.5-9B-pearl-experimental-validate.json`.
 
 ## Enablement Checklist
 
@@ -54,6 +74,49 @@ The Qwen and Gemma targets remain planned:
    - For Gemma4 artifacts, include the base model's processor metadata required
      by vLLM's Gemma4 multimodal profiler.
    - Publish under the planned `pearl-ai/*-pearl` id or a staging namespace.
+
+   OpenJarvis includes an experimental local converter for this work:
+
+   ```bash
+   python scripts/mining/pearl_model_converter.py \
+     Qwen/Qwen3.5-9B \
+     /tmp/pearl-ai-Qwen3.5-9B-pearl \
+     --device cuda
+   ```
+
+   The converter copies Hugging Face metadata, emits
+   `quantization_config.quant_method = "pearl"`, writes a safetensors index,
+   converts attention q/k/v and MLP down projections to int8 non-mining layers,
+   and converts the remaining text linear weights to int7 mining layers. Treat
+   its output as a staging artifact until `jarvis mine inspect-model` and
+   `jarvis mine validate-model` pass on H100/H200 hardware.
+
+   Local staging artifacts can be inspected before upload:
+
+   ```bash
+   jarvis mine inspect-model \
+     --model /tmp/pearl-ai-Qwen3.5-9B-pearl
+   ```
+
+   To run a local staging artifact through the Docker miner, keep `--model` as
+   the intended served model name and point `--local-model-path` at the
+   converted checkpoint directory:
+
+   ```bash
+   jarvis mine init \
+     --provider vllm-pearl \
+     --wallet-address <prl1...> \
+     --model pearl-ai/Qwen3.5-9B-pearl \
+     --local-model-path /tmp/pearl-ai-Qwen3.5-9B-pearl \
+     --cuda-visible-devices 1 \
+     --vllm-arg=--language-model-only \
+     --vllm-arg=--skip-mm-profiling \
+     --vllm-arg=--gdn-prefill-backend \
+     --vllm-arg=triton
+   jarvis mine start
+   ```
+
+   For Qwen3.5 validation, set `max_model_len = 4096` in `[mining.extra]`.
 
 3. Validate the Pearl vLLM plugin path.
    - Run `jarvis mine inspect-model --model <pearl-model-id>

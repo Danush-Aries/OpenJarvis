@@ -413,4 +413,3 @@ policy:
    if the component requires new packages
 
 See the [registry pattern](#registry-pattern) section above for complete examples.
-

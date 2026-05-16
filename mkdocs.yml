@@ -131,6 +131,8 @@ extra_javascript:
   - javascripts/docsearch-init.js
 
 extra:
+  version:
+    default: v1.0.0
   algolia:
     app_id: ""       # Fill after DocSearch approval
     api_key: ""      # Search-only key

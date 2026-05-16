@@ -159,6 +159,7 @@ class GAIADataset(DatasetProvider):
 
         metadata = {
             "task_id": task_id,
+            "question": question,
             "level": level,
             "file_name": file_name,
             "file_path": str(file_path) if file_path else None,

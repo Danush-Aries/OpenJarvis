@@ -2,11 +2,8 @@ name: Desktop Build & Release
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/desktop.yml'
     tags:
+      - 'v*'
       - 'desktop-v*'
   pull_request:
     branches: [main]
@@ -14,9 +11,14 @@ on:
       - 'frontend/**'
       - '.github/workflows/desktop.yml'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.0.2.dev500). If set, autotag dispatches use this. github.ref still controls the checkout.'
+        required: false
+        type: string
 
 concurrency:
-  group: desktop-${{ github.ref }}
+  group: desktop-${{ inputs.tag || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -156,14 +158,36 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ github.ref }}" == refs/tags/desktop-v* ]]; then
+            # Explicit stable desktop release tag
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#desktop-v}"
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
             echo "name=Desktop ${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Auto-tagged rolling build from autotag.yml — use the same
+            # version as the CLI/PyPI release so all surfaces stay in sync.
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "tag=desktop-latest" >> "$GITHUB_OUTPUT"
+            echo "name=Desktop (Latest Build)" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
+            # workflow_dispatch fallback (manual UI dispatch without --ref).
+            # Derive a PEP 440 dev version aligned with autotag.yml so we
+            # don't burn the X.Y.Z release-version namespace.
+            BASE=$(grep -E '^version = "' pyproject.toml | head -1 | sed -E 's/^version = "([^"]+)"/\1/')
+            MAJOR=$(echo "$BASE" | cut -d. -f1)
+            MINOR=$(echo "$BASE" | cut -d. -f2)
+            PATCH=$(echo "$BASE" | cut -d. -f3 | sed -E 's/[^0-9].*$//')
+            NEXT_PATCH=$((PATCH + 1))
+            BUILD=$(git rev-list --count HEAD)
+            VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}.dev${BUILD}"
             echo "tag=desktop-latest" >> "$GITHUB_OUTPUT"
             echo "name=Desktop (Latest Build)" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Configure Apple signing
         if: runner.os == 'macOS'
@@ -199,7 +223,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_CONFIG: '{"bundle":{"externalBin":["binaries/ollama"]}}'
+          TAURI_CONFIG: '{"version":"${{ steps.release-info.outputs.version }}","bundle":{"externalBin":["binaries/ollama"]}}'
         with:
           projectPath: frontend
           tauriScript: npx tauri

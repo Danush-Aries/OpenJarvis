@@ -161,11 +161,14 @@ OpenJarvis is part of [Intelligence Per Watt](https://www.intelligence-per-watt.
 
 ## Citation
 ```bibtex
-@misc{saadfalcon2026openjarvis,
-  title={OpenJarvis: Personal AI, On Personal Devices},
-  author={Jon Saad-Falcon and Avanika Narayan and Herumb Shandilya and Hakki Orhun Akengin and Robby Manihani and Gabriel Bo and John Hennessy and Christopher R\'{e} and Azalia Mirhoseini},
-  year={2026},
-  howpublished={\url{https://scalingintelligence.stanford.edu/blogs/openjarvis/}},
+@misc{saadfalcon2026openjarvispersonalaipersonal,
+      title={OpenJarvis: Personal AI, On Personal Devices}, 
+      author={Jon Saad-Falcon and Avanika Narayan and Robby Manihani and Tanvir Bhathal and Herumb Shandilya and Hakki Orhun Akengin and Gabriel Bo and Andrew Park and Matthew Hart and Caia Costello and Chuan Li and Christopher Ré and Azalia Mirhoseini},
+      year={2026},
+      eprint={2605.17172},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2605.17172}, 
 }
 ```
 

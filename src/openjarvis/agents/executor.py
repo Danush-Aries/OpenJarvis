@@ -322,7 +322,10 @@ class AgentExecutor:
             # adapters) that aren't in the static ToolRegistry. Without this,
             # agents declaring MCP-discovered tools in their template would
             # silently fall back to natives only.
-            if self._system is not None and getattr(self._system, "tool_executor", None) is not None:
+            if (
+                self._system is not None
+                and getattr(self._system, "tool_executor", None) is not None
+            ):
                 mcp_pool = getattr(self._system.tool_executor, "_tools", {}) or {}
                 existing = {t.spec.name for t in tool_instances}
                 for tname in tool_names:

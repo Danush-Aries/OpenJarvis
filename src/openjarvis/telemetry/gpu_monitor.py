@@ -52,12 +52,22 @@ GPU_SPECS: Dict[str, GpuHardwareSpec] = {
     "Arc B580": GpuHardwareSpec(tflops_fp16=196, bandwidth_gb_s=456, tdp_watts=190),
     "Arc B570": GpuHardwareSpec(tflops_fp16=136, bandwidth_gb_s=380, tdp_watts=150),
     # NVIDIA Jetson
-    "Jetson Orin NX 16GB": GpuHardwareSpec(tflops_fp16=50, bandwidth_gb_s=102, tdp_watts=25),
-    "Jetson Orin NX 8GB": GpuHardwareSpec(tflops_fp16=25, bandwidth_gb_s=68, tdp_watts=15),
-    "Jetson AGX Orin": GpuHardwareSpec(tflops_fp16=108, bandwidth_gb_s=204, tdp_watts=60),
+    "Jetson Orin NX 16GB": GpuHardwareSpec(
+        tflops_fp16=50, bandwidth_gb_s=102, tdp_watts=25
+    ),
+    "Jetson Orin NX 8GB": GpuHardwareSpec(
+        tflops_fp16=25, bandwidth_gb_s=68, tdp_watts=15
+    ),
+    "Jetson AGX Orin": GpuHardwareSpec(
+        tflops_fp16=108, bandwidth_gb_s=204, tdp_watts=60
+    ),
     # Qualcomm
-    "Snapdragon X Elite": GpuHardwareSpec(tflops_fp16=4.6, bandwidth_gb_s=136, tdp_watts=80),
-    "Snapdragon X Plus": GpuHardwareSpec(tflops_fp16=3.8, bandwidth_gb_s=136, tdp_watts=80),
+    "Snapdragon X Elite": GpuHardwareSpec(
+        tflops_fp16=4.6, bandwidth_gb_s=136, tdp_watts=80
+    ),
+    "Snapdragon X Plus": GpuHardwareSpec(
+        tflops_fp16=3.8, bandwidth_gb_s=136, tdp_watts=80
+    ),
 }
 
 

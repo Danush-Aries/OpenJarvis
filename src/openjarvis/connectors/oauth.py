@@ -58,9 +58,12 @@ GOOGLE_ALL_SCOPES: List[str] = [
     "email",
     "profile",
     "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/calendar.readonly",
+    # calendar (not .readonly) so the proactive agent can accept/decline events.
+    "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/contacts.readonly",
-    "https://www.googleapis.com/auth/gmail.readonly",
+    # gmail.modify (a superset of gmail.readonly) so the proactive agent
+    # can trash and label-modify (archive) emails after user approval.
+    "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/tasks.readonly",
 ]
 
@@ -269,6 +272,62 @@ def delete_tokens(path: str) -> None:
     p = Path(path)
     if p.exists():
         p.unlink()
+
+
+def refresh_google_token(path: str) -> Optional[str]:
+    """Refresh a Google access token using the stored refresh token.
+
+    Reads the credentials file at *path*, exchanges its ``refresh_token``
+    (plus ``client_id``/``client_secret``) for a new ``access_token``
+    against Google's OAuth token endpoint, persists the refreshed payload
+    back to *path*, and returns the new access token.
+
+    Returns ``None`` if any required field is missing or the refresh call
+    fails (network error or Google returns a non-2xx response — typically
+    ``invalid_grant`` when the refresh token has been revoked).
+    """
+    import httpx
+
+    tokens = load_tokens(path)
+    if not tokens:
+        return None
+    refresh_token = tokens.get("refresh_token")
+    client_id = tokens.get("client_id")
+    client_secret = tokens.get("client_secret")
+    if not (refresh_token and client_id and client_secret):
+        return None
+
+    try:
+        resp = httpx.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            },
+            timeout=15.0,
+        )
+    except httpx.HTTPError:
+        return None
+    if resp.status_code >= 400:
+        return None
+
+    body = resp.json()
+    new_access = body.get("access_token")
+    if not new_access:
+        return None
+
+    tokens.update(
+        {
+            "access_token": new_access,
+            "token": new_access,  # legacy key used by some connectors
+            "token_type": body.get("token_type", tokens.get("token_type", "Bearer")),
+            "expires_in": body.get("expires_in", tokens.get("expires_in", 3600)),
+        }
+    )
+    save_tokens(path, tokens)
+    return new_access
 
 
 # ---------------------------------------------------------------------------

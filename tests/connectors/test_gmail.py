@@ -112,7 +112,7 @@ def test_auth_url_returns_string(connector) -> None:
     url = connector.auth_url()
     assert isinstance(url, str)
     assert url.startswith("https://accounts.google.com/o/oauth2/v2/auth")
-    assert "gmail.readonly" in url
+    assert "gmail.modify" in url
 
 
 # ---------------------------------------------------------------------------
@@ -409,8 +409,7 @@ def test_html_to_text_strips_basic_tags() -> None:
     from openjarvis.connectors.gmail import _html_to_text  # noqa: PLC0415
 
     html = (
-        "<html><body><p>Hello <b>world</b>!</p>"
-        "<p>Second paragraph.</p></body></html>"
+        "<html><body><p>Hello <b>world</b>!</p><p>Second paragraph.</p></body></html>"
     )
     text = _html_to_text(html)
     assert "Hello" in text
@@ -473,8 +472,7 @@ def test_sync_strips_html_when_no_text_plain(
     creds_path.write_text(json.dumps({"token": "fake-access-token"}), encoding="utf-8")
 
     html_bytes = (
-        b"<html><body><p>Hello <b>world</b>!</p>"
-        b"<p>Second paragraph.</p></body></html>"
+        b"<html><body><p>Hello <b>world</b>!</p><p>Second paragraph.</p></body></html>"
     )
     html_b64 = base64.urlsafe_b64encode(html_bytes).decode().rstrip("=")
 
@@ -524,12 +522,14 @@ def test_sync_prefers_text_plain_over_text_html(
     creds_path = Path(connector._credentials_path)
     creds_path.write_text(json.dumps({"token": "fake-access-token"}), encoding="utf-8")
 
-    plain_b64 = base64.urlsafe_b64encode(
-        b"Plain text version preferred."
-    ).decode().rstrip("=")
-    html_b64 = base64.urlsafe_b64encode(
-        b"<html><body><p>HTML version</p></body></html>"
-    ).decode().rstrip("=")
+    plain_b64 = (
+        base64.urlsafe_b64encode(b"Plain text version preferred.").decode().rstrip("=")
+    )
+    html_b64 = (
+        base64.urlsafe_b64encode(b"<html><body><p>HTML version</p></body></html>")
+        .decode()
+        .rstrip("=")
+    )
 
     msg_alt = {
         "id": "msg-alt-1",
@@ -579,6 +579,7 @@ class _FakeResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             import httpx as _httpx
+
             raise _httpx.HTTPStatusError(
                 f"HTTP {self.status_code}", request=None, response=self
             )
@@ -625,8 +626,10 @@ def test_401_triggers_refresh_and_retries_with_new_token(tmp_path: Path) -> None
             json_data={"access_token": "fresh-access-token", "expires_in": 3599},
         )
 
-    with patch.object(gmail_mod.httpx, "get", side_effect=fake_get), \
-         patch.object(gmail_mod.httpx, "post", side_effect=fake_post):
+    with (
+        patch.object(gmail_mod.httpx, "get", side_effect=fake_get),
+        patch.object(gmail_mod.httpx, "post", side_effect=fake_post),
+    ):
         result = gmail_mod._call_with_refresh(
             gmail_mod._gmail_api_get_message, creds_path, "msg-1"
         )
@@ -668,9 +671,13 @@ def test_non_401_status_is_not_refreshed(tmp_path: Path) -> None:
     def fake_get(url, *, headers, params, timeout):
         return _FakeResponse(status_code=503, text="service unavailable")
 
-    fake_post = patch.object(gmail_mod.httpx, "post", side_effect=AssertionError(
-        "_call_with_refresh must not refresh on non-401 status"
-    ))
+    fake_post = patch.object(
+        gmail_mod.httpx,
+        "post",
+        side_effect=AssertionError(
+            "_call_with_refresh must not refresh on non-401 status"
+        ),
+    )
 
     with patch.object(gmail_mod.httpx, "get", side_effect=fake_get), fake_post:
         with pytest.raises(_httpx.HTTPStatusError):
@@ -749,8 +756,10 @@ def test_sync_recovers_when_list_returns_401(tmp_path: Path) -> None:
             json_data={"access_token": "fresh-token-after-401", "expires_in": 3599},
         )
 
-    with patch.object(gmail_mod.httpx, "get", side_effect=fake_get), \
-         patch.object(gmail_mod.httpx, "post", side_effect=fake_post):
+    with (
+        patch.object(gmail_mod.httpx, "get", side_effect=fake_get),
+        patch.object(gmail_mod.httpx, "post", side_effect=fake_post),
+    ):
         docs: List[Document] = list(connector.sync())
 
     assert len(docs) == 1

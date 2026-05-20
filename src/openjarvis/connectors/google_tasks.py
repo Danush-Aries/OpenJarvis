@@ -54,7 +54,15 @@ class GoogleTasksConnector(BaseConnector):
         return tokens.get("access_token") or tokens.get("token", "")
 
     def is_connected(self) -> bool:
-        return self._credentials_path.exists()
+        """Return ``True`` if the credentials file has a real access token.
+
+        File existence alone is not enough — the shared ``google.json``
+        may contain only client_id/client_secret without OAuth tokens.
+        """
+        tokens = load_tokens(str(self._credentials_path))
+        if tokens is None:
+            return False
+        return bool(tokens.get("access_token") or tokens.get("token"))
 
     def disconnect(self) -> None:
         if self._credentials_path.exists():

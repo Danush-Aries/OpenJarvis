@@ -29,6 +29,7 @@ from openjarvis.connectors.oauth import (
     build_google_auth_url,
     delete_tokens,
     load_tokens,
+    refresh_google_token,
     resolve_google_credentials,
     save_tokens,
 )
@@ -97,6 +98,38 @@ def _gmail_api_list_messages(
     return resp.json()
 
 
+def _gmail_api_trash_message(token: str, msg_id: str) -> None:
+    """Move a Gmail message to Trash via the ``messages.trash`` endpoint."""
+    resp = httpx.post(
+        f"{_GMAIL_API_BASE}/messages/{msg_id}/trash",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+
+
+def _gmail_api_modify_message(
+    token: str,
+    msg_id: str,
+    *,
+    add_labels: Optional[List[str]] = None,
+    remove_labels: Optional[List[str]] = None,
+) -> None:
+    """Modify labels on a Gmail message via the ``messages.modify`` endpoint."""
+    body: Dict[str, Any] = {}
+    if add_labels:
+        body["addLabelIds"] = add_labels
+    if remove_labels:
+        body["removeLabelIds"] = remove_labels
+    resp = httpx.post(
+        f"{_GMAIL_API_BASE}/messages/{msg_id}/modify",
+        headers={"Authorization": f"Bearer {token}"},
+        json=body,
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+
+
 def _gmail_api_get_message(token: str, msg_id: str) -> Dict[str, Any]:
     """Fetch a single Gmail message by ID (``full`` format).
 
@@ -148,9 +181,28 @@ class _HTMLTextExtractor(HTMLParser):
 
     _SKIP_TAGS = {"script", "style", "head", "title", "meta", "link"}
     _BLOCK_TAGS = {
-        "p", "div", "br", "li", "ul", "ol", "tr", "td", "table",
-        "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "hr",
-        "article", "section", "header", "footer", "pre",
+        "p",
+        "div",
+        "br",
+        "li",
+        "ul",
+        "ol",
+        "tr",
+        "td",
+        "table",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "hr",
+        "article",
+        "section",
+        "header",
+        "footer",
+        "pre",
     }
 
     def __init__(self) -> None:
@@ -158,9 +210,7 @@ class _HTMLTextExtractor(HTMLParser):
         self._parts: List[str] = []
         self._skip_depth = 0
 
-    def handle_starttag(
-        self, tag: str, attrs: List[Tuple[str, Optional[str]]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
         if tag in self._SKIP_TAGS:
             self._skip_depth += 1
         elif tag in self._BLOCK_TAGS and self._skip_depth == 0:
@@ -311,20 +361,24 @@ class GmailConnector(BaseConnector):
     # ------------------------------------------------------------------
 
     def is_connected(self) -> bool:
-        """Return ``True`` if a credentials file with a valid token exists."""
+        """Return ``True`` if a credentials file with a valid access token exists.
+
+        The previous "any non-empty dict counts" check returned True for
+        files containing only client_id/client_secret (no actual OAuth
+        token), which made `jarvis connect gmail` short-circuit with
+        "already connected" before any OAuth flow ran.
+        """
         tokens = load_tokens(self._credentials_path)
         if tokens is None:
             return False
-        # Accept any non-empty dict that contains at least one key
-        # (simplified: real impl would also check expiry / refresh token)
-        return bool(tokens)
+        return bool(tokens.get("access_token") or tokens.get("token"))
 
     def disconnect(self) -> None:
         """Delete the stored credentials file."""
         delete_tokens(self._credentials_path)
 
     def auth_url(self) -> str:
-        """Return a Google OAuth consent URL requesting ``gmail.readonly`` scope."""
+        """Return a Google OAuth consent URL for the shared Google scopes."""
         return build_google_auth_url(
             client_id="",  # placeholder — real client_id from config
             scopes=GOOGLE_ALL_SCOPES,
@@ -343,6 +397,7 @@ class GmailConnector(BaseConnector):
         *,
         since: Optional[datetime] = None,
         cursor: Optional[str] = None,
+        query_extra: str = "",
     ) -> Iterator[Document]:
         """Yield :class:`Document` objects for Gmail messages.
 
@@ -356,14 +411,15 @@ class GmailConnector(BaseConnector):
             returned.  Translated to a Gmail ``after:<epoch>`` search query.
         cursor:
             ``nextPageToken`` from a previous sync to resume pagination.
+        query_extra:
+            Additional Gmail search operators appended to the base query,
+            e.g. ``"is:unread"`` to restrict to unread messages only.
         """
         # Existence check only — the actual access token is reloaded on every
         # API call by _call_with_refresh so a mid-sync refresh is picked up
         # transparently.
         tokens = load_tokens(self._credentials_path)
-        if not tokens:
-            return
-        if not (tokens.get("access_token") or tokens.get("token")):
+        if not tokens or not (tokens.get("token") or tokens.get("access_token")):
             return
 
         # Default to no filter so SENT, labeled, and category-tabbed mail
@@ -374,6 +430,8 @@ class GmailConnector(BaseConnector):
         if since is not None:
             # Gmail's after: operator accepts Unix epoch seconds.
             query_parts.append(f"after:{int(since.timestamp())}")
+        if query_extra:
+            query_parts.append(query_extra)
         query = " ".join(query_parts)
 
         page_token: Optional[str] = cursor
@@ -460,6 +518,54 @@ class GmailConnector(BaseConnector):
 
         self._items_synced = synced
         self._last_sync = datetime.now()
+
+    def _current_token(self) -> str:
+        """Return the cached access token (may be expired)."""
+        tokens = load_tokens(self._credentials_path)
+        if not tokens:
+            raise RuntimeError("Gmail not authenticated")
+        return tokens.get("token") or tokens.get("access_token") or ""
+
+    def _refresh_token(self) -> str:
+        """Refresh the access token using the stored refresh token.
+
+        Raises ``RuntimeError`` if refresh fails (typically because the
+        refresh token has been revoked — user must re-authorise).
+        """
+        new = refresh_google_token(self._credentials_path)
+        if not new:
+            raise RuntimeError(
+                "Gmail token refresh failed — re-run `jarvis connect gmail`"
+            )
+        return new
+
+    def _call_with_refresh(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
+        """Invoke a ``_gmail_api_*`` function with auto-refresh on 401.
+
+        Tries with the cached token first.  If the call raises an
+        ``httpx.HTTPStatusError`` with a 401, refresh the access token
+        once and retry.  Any other failure propagates unchanged.
+        """
+        import httpx
+
+        token = self._current_token()
+        try:
+            return fn(token, *args, **kwargs)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 401:
+                raise
+            token = self._refresh_token()
+            return fn(token, *args, **kwargs)
+
+    def delete_message(self, msg_id: str) -> None:
+        """Move a message to Trash (recoverable for 30 days)."""
+        self._call_with_refresh(_gmail_api_trash_message, msg_id)
+
+    def archive_message(self, msg_id: str) -> None:
+        """Archive a message by removing the INBOX label."""
+        self._call_with_refresh(
+            _gmail_api_modify_message, msg_id, remove_labels=["INBOX"]
+        )
 
     def sync_status(self) -> SyncStatus:
         """Return sync progress from the most recent :meth:`sync` call."""

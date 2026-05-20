@@ -390,7 +390,11 @@ class TestPersonaFilesReachModel:
         # Grab the messages passed to engine.generate
         engine.generate.assert_called()
         call_args = engine.generate.call_args
-        messages = call_args.args[0] if call_args.args else call_args.kwargs.get("messages")
+        messages = (
+            call_args.args[0]
+            if call_args.args
+            else call_args.kwargs.get("messages")
+        )
         assert messages is not None and len(messages) >= 2
         system_messages = [m for m in messages if str(m.role).endswith("SYSTEM")]
         assert system_messages, f"No SYSTEM message in {messages!r}"

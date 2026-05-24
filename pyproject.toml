@@ -198,4 +198,5 @@ select = ["E", "F", "I", "W"]
 [dependency-groups]
 dev = [
     "maturin>=1.12.6",
+    "pytest>=9.0.2",
 ]

@@ -175,11 +175,14 @@ class BaseAgent(ABC):
                 {"model": self._model, "engine": engine_id},
             )
 
+        model = extra_kwargs.pop("model", self._model)
+        temperature = extra_kwargs.pop("temperature", self._temperature)
+        max_tokens = extra_kwargs.pop("max_tokens", self._max_tokens)
         result = self._engine.generate(
             messages,
-            model=self._model,
-            temperature=self._temperature,
-            max_tokens=self._max_tokens,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
             **extra_kwargs,
         )
 

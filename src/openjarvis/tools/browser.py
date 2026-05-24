@@ -28,7 +28,7 @@ class _BrowserSession:
                 "playwright not installed. Install with: uv sync --extra browser"
             )
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(headless=True)
+        self._browser = self._playwright.chromium.launch(headless=False)
         self._page = self._browser.new_page()
 
     @property
@@ -64,8 +64,11 @@ class BrowserNavigateTool(BaseTool):
         return ToolSpec(
             name="browser_navigate",
             description=(
-                "Navigate to a URL in the browser."
-                " Returns the page title and text content."
+                "Navigate to a URL in a headless background browser. "
+                "Returns the page title and text content. Use this tool ONLY "
+                "for background information gathering/web extraction. If you need to "
+                "open a website/URL for the user to view locally, you must use "
+                "'launch_app' with the 'url' parameter instead to save credits."
             ),
             parameters={
                 "type": "object",

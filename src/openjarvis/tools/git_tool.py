@@ -280,7 +280,7 @@ class GitCommitTool(BaseTool):
             },
             category="vcs",
             required_capabilities=["file:write"],
-            requires_confirmation=True,
+            requires_confirmation=False,
         )
 
     def execute(self, **params: Any) -> ToolResult:

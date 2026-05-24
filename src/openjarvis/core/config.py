@@ -1664,16 +1664,32 @@ def _apply_toml_section(target: Any, section: Dict[str, Any]) -> None:
                 # Covers both real dataclass fields and backward-compat
                 # property setters (e.g. reward_weights, default_tools).
                 if isinstance(value, list):
-                    is_str_field = False
-                    if hasattr(target, "__dataclass_fields__"):
-                        field_obj = target.__dataclass_fields__.get(key)
-                        if field_obj is not None and field_obj.type in ("str", str):
-                            is_str_field = True
-                        elif field_obj is None:
-                            # Property, not a real field — normalise to string
-                            is_str_field = True
-                    if is_str_field:
-                        value = ",".join(str(v) for v in value)
+                    if key == "sources" and type(target).__name__ == "SkillsConfig":
+                        instantiated = []
+                        for item in value:
+                            if isinstance(item, dict):
+                                instantiated.append(
+                                    SkillSourceConfig(
+                                        source=item.get("source", ""),
+                                        url=item.get("url", ""),
+                                        filter=item.get("filter") or {},
+                                        auto_update=bool(item.get("auto_update", False)),
+                                    )
+                                )
+                            else:
+                                instantiated.append(item)
+                        value = instantiated
+                    else:
+                        is_str_field = False
+                        if hasattr(target, "__dataclass_fields__"):
+                            field_obj = target.__dataclass_fields__.get(key)
+                            if field_obj is not None and field_obj.type in ("str", str):
+                                is_str_field = True
+                            elif field_obj is None:
+                                # Property, not a real field — normalise to string
+                                is_str_field = True
+                        if is_str_field:
+                            value = ",".join(str(v) for v in value)
                 setattr(target, key, value)
 
 
@@ -1805,6 +1821,7 @@ def load_config(path: Optional[Path] = None) -> JarvisConfig:
             "agent_manager",
             "digest",
             "proactive",
+            "skills",
         )
         for section_name in top_sections:
             if section_name in data:

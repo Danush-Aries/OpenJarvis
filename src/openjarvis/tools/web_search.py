@@ -109,6 +109,9 @@ class WebSearchTool(BaseTool):
         )
         # Strip HTML tags
         text = _re.sub(r"<[^>]+>", " ", html)
+        # Unescape HTML entities (e.g. &amp; -> &, &ldquo; -> ")
+        import html as _html
+        text = _html.unescape(text)
         # Collapse whitespace
         text = _re.sub(r"\s+", " ", text).strip()
         if len(text) > max_chars:

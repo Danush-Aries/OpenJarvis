@@ -5179,6 +5179,7 @@ tools-search = [
 [package.dev-dependencies]
 dev = [
     { name = "maturin" },
+    { name = "pytest" },
 ]
 
 [package.metadata]
@@ -5275,7 +5276,10 @@ requires-dist = [
 provides-extras = ["dev", "inference-mlx", "inference-vllm", "inference-cloud", "inference-google", "inference-litellm", "inference-gemma", "tools-search", "memory-faiss", "memory-colbert", "memory-pdf", "memory-bm25", "server", "openhands", "gpu-metrics", "energy-amd", "energy-apple", "energy-all", "orchestrator-training", "learning-dspy", "learning-gepa", "channel-telegram", "channel-discord", "channel-slack", "channel-line", "channel-viber", "channel-messenger", "channel-reddit", "channel-mastodon", "channel-xmpp", "channel-rocketchat", "channel-zulip", "channel-twitter", "channel-twitch", "channel-nostr", "channel-twilio", "channel-gmail", "browser", "media", "mining-pearl-vllm", "pdf", "scheduler", "security-signing", "sandbox-wasm", "sandbox-docker", "dashboard", "speech", "speech-deepgram", "eval-wandb", "eval-sheets", "mining-pearl-cpu", "framework-comparison", "docs"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "maturin", specifier = ">=1.12.6" }]
+dev = [
+    { name = "maturin", specifier = ">=1.12.6" },
+    { name = "pytest", specifier = ">=9.0.2" },
+]
 
 [[package]]
 name = "opentelemetry-api"

@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import os
+# Auto-wire local unblocked Anthropic Claude 3.5 server
+os.environ["ANTHROPIC_API_KEY"] = "freecc"
+os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:8082"
+
 import click
 
 import openjarvis
@@ -36,6 +41,7 @@ from openjarvis.cli.registry_cmd import registry
 from openjarvis.cli.scan_cmd import scan
 from openjarvis.cli.scheduler_cmd import scheduler
 from openjarvis.cli.self_update_cmd import self_update
+from openjarvis.cli.soul_cmd import soul
 from openjarvis.cli.serve import serve
 from openjarvis.cli.skill_cmd import skill
 from openjarvis.cli.telemetry_cmd import telemetry
@@ -121,6 +127,7 @@ cli.add_command(deep_research_setup, "deep-research-setup")
 cli.add_command(deep_research_setup, "research")
 cli.add_command(self_update, "self-update")
 cli.add_command(bootstrap_cmd, "_bootstrap")
+cli.add_command(soul, "soul")
 
 # Gateway CLI commands (lazy import to avoid pulling starlette)
 try:

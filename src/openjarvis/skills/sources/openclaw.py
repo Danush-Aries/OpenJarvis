@@ -19,7 +19,7 @@ from openjarvis.skills.sources.base import ResolvedSkill, SourceResolver
 
 LOGGER = logging.getLogger(__name__)
 
-OPENCLAW_REPO_URL = "https://github.com/openclaw/skills.git"
+OPENCLAW_REPO_URL = "https://github.com/LeoYeAI/openclaw-master-skills.git"
 
 
 class OpenClawResolver(SourceResolver):

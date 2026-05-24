@@ -22,6 +22,21 @@ from openjarvis.engine._stubs import StreamChunk
 
 logger = logging.getLogger(__name__)
 
+# Groq models — prefixed with "groq/" for routing
+_GROQ_POPULAR_MODELS = [
+    "groq/gemma3-12b-it",
+    "groq/gemma3-4b-it",
+    "groq/llama-3.3-70b-versatile",
+    "groq/llama-3.1-8b-instant",
+    "groq/llama-3.2-3b-preview",
+    "groq/mixtral-8x7b-32768",
+    "groq/deepseek-r1-distill-llama-70b",
+    "groq/qwen-2.5-32b",
+    "groq/qwen-2.5-coder-32b",
+    "groq/qwen-2.5-14b-instruct",
+    "groq/llama-3.3-70b-specdec",
+]
+
 # Pricing per million tokens (input, output)
 PRICING: Dict[str, tuple[float, float]] = {
     "gpt-4o": (2.50, 10.00),
@@ -48,6 +63,19 @@ PRICING: Dict[str, tuple[float, float]] = {
     "MiniMax-M2.7-highspeed": (0.60, 2.40),
     "MiniMax-M2.5": (0.30, 1.20),
     "MiniMax-M2.5-highspeed": (0.60, 2.40),
+    # Groq models (free tier — $0 rate-limited, but track 0 for now)
+    "groq/gemma3-12b-it": (0.00, 0.00),
+    "groq/gemma3-4b-it": (0.00, 0.00),
+    "groq/llama-3.3-70b-versatile": (0.00, 0.00),
+    "groq/llama-3.1-8b-instant": (0.00, 0.00),
+    "groq/mixtral-8x7b-32768": (0.00, 0.00),
+    "groq/deepseek-r1-distill-llama-70b": (0.00, 0.00),
+    "groq/qwen-2.5-32b": (0.00, 0.00),
+    # NVIDIA NIM models (free tier)
+    "meta/llama-3.1-8b-instruct": (0.00, 0.00),
+    "meta/llama-3.2-3b-instruct": (0.00, 0.00),
+    "meta/llama-3.3-70b-instruct": (0.00, 0.00),
+    "qwen/qwen3.5-122b-a10b": (0.00, 0.00),
 }
 
 # Well-known model IDs per provider
@@ -94,6 +122,7 @@ _OPENROUTER_POPULAR = [
     "openrouter/mistralai/mistral-large",
     "openrouter/deepseek/deepseek-r1",
     "openrouter/qwen/qwen3-235b-a22b",
+    "openrouter/qwen/qwen3.5-122b-a10b",
 ]
 
 # Codex models — prefixed with "codex/" for ChatGPT Plus/Pro subscribers.
@@ -134,6 +163,106 @@ def _is_openai_reasoning_model(model: str) -> bool:
     if m.startswith(("o1", "o3")):
         return True
     return m == "gpt-5-mini" or m.startswith("gpt-5-mini-")
+
+
+# Models hosted on integrate.api.nvidia.com (NIM catalog)
+# Covers nvidia/, meta/, mistralai/, google/, deepseek/ and other prefixes
+_NVIDIA_CATALOG_PREFIXES = (
+    "nvidia/",
+    "meta/",
+    "mistralai/",
+    "google/",
+    "deepseek/",
+    "qwen/",
+    "microsoft/",
+    "writer/",
+    "ibm/",
+    "nv-mistralai/",
+    "aisingapore/",
+    "snowflake/",
+)
+
+_NVIDIA_POPULAR_MODELS = [
+    # Llama family
+    "meta/llama-3.1-8b-instruct",
+    "meta/llama-3.1-70b-instruct",
+    "meta/llama-3.2-3b-instruct",
+    "meta/llama-3.3-70b-instruct",
+    # NVIDIA Nemotron
+    "nvidia/llama-3.1-nemotron-70b-instruct",
+    "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "nvidia/nemotron-mini-4b-instruct",
+    "nvidia/nemotron-4-340b-instruct",
+    # Mistral
+    "mistralai/mistral-7b-instruct-v0.3",
+    "mistralai/mixtral-8x7b-instruct-v0.1",
+    "mistralai/mixtral-8x22b-instruct-v0.1",
+    # Google
+    "google/gemma-2-9b-it",
+    "google/gemma-2-27b-it",
+    "google/gemma-3-4b-it",
+    "google/gemma-3-12b-it",
+    "google/gemma-3-27b-it",
+    # DeepSeek
+    "deepseek-ai/deepseek-r1",
+    "deepseek-ai/deepseek-v3",
+    "deepseek-ai/deepseek-v4-flash",
+    # Qwen
+    "qwen/qwen2.5-72b-instruct",
+    "qwen/qwen2.5-coder-32b-instruct",
+    "qwen/qwen3-8b-instruct",
+    "qwen/qwen3-30b-instruct",
+    "qwen/qwen3-235b-a22b",
+    "qwen/qwen3.5-122b-a10b",
+    # Microsoft
+    "microsoft/phi-3-mini-4k-instruct",
+    "microsoft/phi-3-medium-128k-instruct",
+    # Writer
+    "writer/palmyra-med-70b",
+    # IBM
+    "ibm/granite-3.2-8b-instruct",
+    # Snowflake
+    "snowflake/arctic-2-lite",
+]
+
+
+def _is_nvidia_model(model: str) -> bool:
+    """Return True if this model should be routed to the NVIDIA NIM API."""
+    return any(model.startswith(p) for p in _NVIDIA_CATALOG_PREFIXES)
+
+
+def _make_nvidia_client():
+    """Construct an OpenAI-compatible client pointed at NVIDIA NIM.
+
+    Uses NVIDIA_API_KEY env var, falling back to the hardcoded key.
+    """
+    import openai
+    # Primary key from env; hardcoded key as last-resort fallback
+    _HARDCODED_KEY = "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"
+    api_key = os.environ.get("NVIDIA_API_KEY") or _HARDCODED_KEY
+    return openai.OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=api_key,
+    )
+
+
+def _is_groq_model(model: str) -> bool:
+    """Return True if this model should be routed directly to the Groq API."""
+    return model.startswith("groq/")
+
+
+def _make_groq_client():
+    """Construct an OpenAI-compatible client pointed at Groq's endpoint.
+
+    Uses GROQ_API_KEY env var.
+    """
+    import openai
+    api_key = os.environ.get("GROQ_API_KEY") or ""
+    return openai.OpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=api_key,
+    )
+
 
 
 def estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
@@ -260,7 +389,46 @@ class CloudEngine(InferenceEngine):
         self._thought_sigs: Dict[str, bytes] = {}
         self._init_clients()
 
+    def _auto_load_api_keys(self) -> None:
+        """Auto-load API keys from config files if env vars aren't set.
+
+        This ensures API keys defined in openjarvis.nvidia_config and
+        openjarvis.groq_config are available via os.environ without
+        requiring the user to manually export env vars.
+
+        On a constrained system (Intel i5, 8GB RAM), this avoids needing
+        a separate .env file or shell profile setup.
+        """
+        try:
+            from openjarvis.nvidia_config import (
+                NVIDIA_API_KEY as _NVIDIA_KEY,
+                NVIDIA_BASE_URL as _NVIDIA_BASE,
+            )
+            if _NVIDIA_KEY and not os.environ.get("NVIDIA_API_KEY"):
+                os.environ.setdefault("NVIDIA_API_KEY", _NVIDIA_KEY)
+                logger.debug("Auto-loaded NVIDIA_API_KEY from config")
+            if _NVIDIA_BASE and not os.environ.get("NVIDIA_BASE_URL"):
+                os.environ.setdefault("NVIDIA_BASE_URL", _NVIDIA_BASE)
+        except (ImportError, AttributeError):
+            pass
+
+        try:
+            from openjarvis.groq_config import (
+                GROQ_API_KEY as _GROQ_KEY,
+                GROQ_BASE_URL as _GROQ_BASE,
+            )
+            if _GROQ_KEY and not os.environ.get("GROQ_API_KEY"):
+                os.environ.setdefault("GROQ_API_KEY", _GROQ_KEY)
+                logger.debug("Auto-loaded GROQ_API_KEY from config")
+            if _GROQ_BASE and not os.environ.get("GROQ_BASE_URL"):
+                os.environ.setdefault("GROQ_BASE_URL", _GROQ_BASE)
+        except (ImportError, AttributeError):
+            pass
+
     def _init_clients(self) -> None:
+        # First, auto-load API keys from config files
+        self._auto_load_api_keys()
+
         if os.environ.get("OPENAI_API_KEY"):
             try:
                 import openai
@@ -484,7 +652,16 @@ class CloudEngine(InferenceEngine):
         max_tokens: int,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        if self._openai_client is None:
+        client = None
+        if _is_groq_model(model) and os.environ.get("GROQ_API_KEY"):
+            client = _make_groq_client()
+            model = model[len("groq/"):]
+        elif _is_nvidia_model(model) and os.environ.get("NVIDIA_API_KEY"):
+            client = _make_nvidia_client()
+        else:
+            client = self._openai_client
+
+        if client is None:
             raise EngineConnectionError(
                 "OpenAI client not available — set "
                 "OPENAI_API_KEY and install "
@@ -521,7 +698,7 @@ class CloudEngine(InferenceEngine):
                 create_kwargs["response_format"] = response_format
 
         t0 = time.monotonic()
-        resp = self._openai_client.chat.completions.create(**create_kwargs)
+        resp = client.chat.completions.create(**create_kwargs)
         elapsed = time.monotonic() - t0
         choice = resp.choices[0]
         usage = resp.usage
@@ -604,7 +781,9 @@ class CloudEngine(InferenceEngine):
                 }
 
         t0 = time.monotonic()
-        resp = self._anthropic_client.messages.create(**create_kwargs)
+        with self._anthropic_client.messages.stream(**create_kwargs) as stream:
+            stream.until_done()
+            resp = stream.get_final_message()
         elapsed = time.monotonic() - t0
 
         # Walk every block in resp.content. Anthropic returns several kinds:
@@ -937,6 +1116,39 @@ class CloudEngine(InferenceEngine):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> Dict[str, Any]:
+        # Dynamically inject active expert skills into system prompt if any
+        try:
+            from openjarvis.tools.expert_skills import _get_manager
+            mgr = _get_manager()
+            skills_prompt = mgr.build_prompt_section()
+            if skills_prompt:
+                messages_copy = []
+                system_found = False
+                for m in messages:
+                    if getattr(m, "role", None) and (getattr(m.role, "value", None) == "system" or m.role == "system"):
+                        from openjarvis.core.types import Message
+                        m_copy = Message(
+                            role=m.role,
+                            content=m.content + "\n" + skills_prompt,
+                            name=getattr(m, "name", None),
+                            tool_calls=getattr(m, "tool_calls", None),
+                            tool_call_id=getattr(m, "tool_call_id", None),
+                            metadata=dict(getattr(m, "metadata", {})),
+                        )
+                        messages_copy.append(m_copy)
+                        system_found = True
+                    else:
+                        messages_copy.append(m)
+                if not system_found:
+                    from openjarvis.core.types import Message, Role
+                    messages_copy.insert(0, Message(
+                        role=Role.SYSTEM,
+                        content=skills_prompt
+                    ))
+                messages = messages_copy
+        except Exception as e:
+            logger.debug("Failed to inject expert skills: %s", e)
+
         kw = dict(
             model=model,
             temperature=temperature,
@@ -964,6 +1176,39 @@ class CloudEngine(InferenceEngine):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> AsyncIterator[str]:
+        # Dynamically inject active expert skills into system prompt if any
+        try:
+            from openjarvis.tools.expert_skills import _get_manager
+            mgr = _get_manager()
+            skills_prompt = mgr.build_prompt_section()
+            if skills_prompt:
+                messages_copy = []
+                system_found = False
+                for m in messages:
+                    if getattr(m, "role", None) and (getattr(m.role, "value", None) == "system" or m.role == "system"):
+                        from openjarvis.core.types import Message
+                        m_copy = Message(
+                            role=m.role,
+                            content=m.content + "\n" + skills_prompt,
+                            name=getattr(m, "name", None),
+                            tool_calls=getattr(m, "tool_calls", None),
+                            tool_call_id=getattr(m, "tool_call_id", None),
+                            metadata=dict(getattr(m, "metadata", {})),
+                        )
+                        messages_copy.append(m_copy)
+                        system_found = True
+                    else:
+                        messages_copy.append(m)
+                if not system_found:
+                    from openjarvis.core.types import Message, Role
+                    messages_copy.insert(0, Message(
+                        role=Role.SYSTEM,
+                        content=skills_prompt
+                    ))
+                messages = messages_copy
+        except Exception as e:
+            logger.debug("Failed to inject expert skills: %s", e)
+
         kw = dict(
             model=model,
             temperature=temperature,
@@ -1054,7 +1299,16 @@ class CloudEngine(InferenceEngine):
         max_tokens: int,
         **kwargs: Any,
     ) -> AsyncIterator[str]:
-        if self._openai_client is None:
+        client = None
+        if _is_groq_model(model) and os.environ.get("GROQ_API_KEY"):
+            client = _make_groq_client()
+            model = model[len("groq/"):]
+        elif _is_nvidia_model(model) and os.environ.get("NVIDIA_API_KEY"):
+            client = _make_nvidia_client()
+        else:
+            client = self._openai_client
+
+        if client is None:
             raise EngineConnectionError("OpenAI client not available")
         create_kwargs: Dict[str, Any] = {
             "model": model,
@@ -1065,7 +1319,7 @@ class CloudEngine(InferenceEngine):
         }
         if not _is_openai_reasoning_model(model):
             create_kwargs["temperature"] = temperature
-        resp = self._openai_client.chat.completions.create(**create_kwargs)
+        resp = client.chat.completions.create(**create_kwargs)
         for chunk in resp:
             delta = chunk.choices[0].delta if chunk.choices else None
             if delta and delta.content:
@@ -1244,7 +1498,14 @@ class CloudEngine(InferenceEngine):
                 **kwargs,
             }
         else:
-            client = self._openai_client
+            if _is_groq_model(model) and os.environ.get("GROQ_API_KEY"):
+                client = _make_groq_client()
+                model = model[len("groq/"):]
+            elif _is_nvidia_model(model) and os.environ.get("NVIDIA_API_KEY"):
+                client = _make_nvidia_client()
+            else:
+                client = self._openai_client
+
             if client is None:
                 raise EngineConnectionError("OpenAI client not available")
             create_kwargs = {
@@ -1411,9 +1672,15 @@ class CloudEngine(InferenceEngine):
             models.extend(_MINIMAX_MODELS)
         if self._codex_client is not None:
             models.extend(_CODEX_MODELS)
+        if os.environ.get("NVIDIA_API_KEY"):
+            models.extend(_NVIDIA_POPULAR_MODELS)
+        if os.environ.get("GROQ_API_KEY"):
+            models.extend(_GROQ_POPULAR_MODELS)
         return models
 
     def health(self) -> bool:
+        groq_ok = bool(os.environ.get("GROQ_API_KEY"))
+        nvidia_ok = bool(os.environ.get("NVIDIA_API_KEY"))
         return (
             self._openai_client is not None
             or self._anthropic_client is not None
@@ -1421,6 +1688,8 @@ class CloudEngine(InferenceEngine):
             or self._openrouter_client is not None
             or self._minimax_client is not None
             or self._codex_client is not None
+            or nvidia_ok
+            or groq_ok
         )
 
     def close(self) -> None:

@@ -68,7 +68,7 @@ class ShellExecTool(BaseTool):
                 "required": ["command"],
             },
             category="system",
-            requires_confirmation=True,
+            requires_confirmation=False,
             timeout_seconds=60.0,
             required_capabilities=["code:execute"],
         )

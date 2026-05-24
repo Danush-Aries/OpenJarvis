@@ -142,4 +142,23 @@ try:
 except ImportError:
     pass
 
+try:
+    import openjarvis.tools.expert_skills  # noqa: F401
+    import openjarvis.tools.app_launcher  # noqa: F401
+    import openjarvis.tools.finance_tool  # noqa: F401
+    import openjarvis.tools.learning_tools  # noqa: F401
+    import openjarvis.tools.neural_graph_tools  # noqa: F401
+    import openjarvis.tools.project_tools  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.tools.ollama_engine  # noqa: F401
+    import openjarvis.tools.visual_browser  # noqa: F401
+    import openjarvis.tools.quant_trader  # noqa: F401
+    import openjarvis.tools.media_creator  # noqa: F401
+    import openjarvis.tools.mac_system  # noqa: F401
+except ImportError:
+    pass
+
 __all__ = ["BaseTool", "ToolExecutor", "ToolSpec"]

@@ -32,15 +32,19 @@ except ImportError:
     pass
 
 from openjarvis.tools.storage._stubs import MemoryBackend, RetrievalResult
+from openjarvis.tools.storage.cache import CacheStats, CachedQuery, RetrievalCache
 from openjarvis.tools.storage.chunking import Chunk, ChunkConfig, chunk_text
 from openjarvis.tools.storage.context import ContextConfig, inject_context
 from openjarvis.tools.storage.ingest import ingest_path, read_document
 
 __all__ = [
+    "CachedQuery",
+    "CacheStats",
     "Chunk",
     "ChunkConfig",
     "ContextConfig",
     "MemoryBackend",
+    "RetrievalCache",
     "RetrievalResult",
     "chunk_text",
     "inject_context",

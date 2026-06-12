@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import logging
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI
@@ -25,7 +27,72 @@ if _src not in sys.path:
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger("jarvis")
 
-app = FastAPI(title="Jarvis API", version="0.2.0")
+
+# ---------------------------------------------------------------------------
+# Lifespan context manager — replaces deprecated @app.on_event decorators
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Handle application startup and shutdown."""
+    # ---- STARTUP ----
+    from openjarvis.core.credentials import get_credentials
+    creds = get_credentials()
+
+    # Warm up the default soul (creates one if it doesn't exist yet)
+    _default_soul_status = ""
+    try:
+        from openjarvis.soul import Soul
+        default = Soul.load_or_create("default")
+        mem_stats = default.memory.stats()
+        _default_soul_status = (
+            f"{mem_stats['total']} memories "
+            f"(E:{mem_stats['episodic']} S:{mem_stats['semantic']} P:{mem_stats['procedural']}), "
+            f"evolved {default.persona.evolution_count}x"
+        )
+        logger.info("    Soul:  %s default [%s]",
+                     chr(10003), _default_soul_status)
+    except Exception as e:
+        logger.info("    Soul:  O (%s)", e)
+
+    logger.info("")
+    logger.info("Jarvis API Server v0.2.0")
+    logger.info("  Endpoints:")
+    logger.info("    POST /v1/chat        - Conversational AI")
+    logger.info("    POST /v1/chat/stream  - Streaming AI")
+    logger.info("    POST /v1/voice/speak  - Text-to-Speech")
+    logger.info("    GET  /v1/soul/*       - Persistent Identity & Memory")
+    logger.info("    GET  /v1/projects/*   - Project Management")
+    logger.info("    GET  /v1/graph/*      - Knowledge Graph")
+    logger.info("  Services:")
+    logger.info("    LLM:   %s %s",
+                chr(10003) if creds.llm_available else "O",
+                creds.llm_model)
+    logger.info("    TTS:   %s Cartesia",
+                chr(10003) if creds.tts_available else "O")
+    logger.info("    Web:   %s Tavily Search",
+                chr(10003) if creds.web_search_available else "O")
+    logger.info("    STT:   %s Deepgram",
+                chr(10003) if creds.stt_available else "O")
+    logger.info("  Tools loaded: %d", _tool_count)
+    logger.info("")
+
+    yield
+
+    # ---- SHUTDOWN ----
+    try:
+        from openjarvis.soul import Soul
+        before = len(Soul.list_souls())
+        Soul.close_all()
+        if before:
+            logger.info("Closed all %d cached souls gracefully", before)
+    except Exception:
+        pass
+    logger.info("Jarvis API Server shutting down")
+
+
+app = FastAPI(title="Jarvis API", version="0.2.0", lifespan=lifespan)
 
 # CORS — allow frontend dev server
 app.add_middleware(
@@ -104,55 +171,6 @@ _tool_count = (
 
 
 # ---------------------------------------------------------------------------
-# Startup event — log status and warm up services
-# ---------------------------------------------------------------------------
-
-
-@app.on_event("startup")
-async def startup():
-    from openjarvis.core.credentials import get_credentials
-    creds = get_credentials()
-
-    # Warm up the default soul (creates one if it doesn't exist yet)
-    _default_soul_status = ""
-    try:
-        from openjarvis.soul import Soul
-        default = Soul.load_or_create("default")
-        mem_stats = default.memory.stats()
-        _default_soul_status = (
-            f"{mem_stats['total']} memories "
-            f"(E:{mem_stats['episodic']} S:{mem_stats['semantic']} P:{mem_stats['procedural']}), "
-            f"evolved {default.persona.evolution_count}x"
-        )
-        logger.info("    Soul:  %s default [%s]",
-                     chr(10003), _default_soul_status)
-    except Exception as e:
-        logger.info("    Soul:  O (%s)", e)
-
-    logger.info("")
-    logger.info("Jarvis API Server v0.2.0")
-    logger.info("  Endpoints:")
-    logger.info("    POST /v1/chat        - Conversational AI")
-    logger.info("    POST /v1/chat/stream  - Streaming AI")
-    logger.info("    POST /v1/voice/speak  - Text-to-Speech")
-    logger.info("    GET  /v1/soul/*       - Persistent Identity & Memory")
-    logger.info("    GET  /v1/projects/*   - Project Management")
-    logger.info("    GET  /v1/graph/*      - Knowledge Graph")
-    logger.info("  Services:")
-    logger.info("    LLM:   %s %s",
-                chr(10003) if creds.llm_available else "O",
-                creds.llm_model)
-    logger.info("    TTS:   %s Cartesia",
-                chr(10003) if creds.tts_available else "O")
-    logger.info("    Web:   %s Tavily Search",
-                chr(10003) if creds.web_search_available else "O")
-    logger.info("    STT:   %s Deepgram",
-                chr(10003) if creds.stt_available else "O")
-    logger.info("  Tools loaded: %d", _tool_count)
-    logger.info("")
-
-
-# ---------------------------------------------------------------------------
 # Health & status
 # ---------------------------------------------------------------------------
 
@@ -198,28 +216,6 @@ async def health():
         "soul": soul_info,
         "tools_loaded": _tool_count,
     }
-
-
-# ---------------------------------------------------------------------------
-# Shutdown — close all souls gracefully
-# ---------------------------------------------------------------------------
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Flush and close all cached souls on server shutdown.
-
-    Ensures any buffered memory writes are persisted to disk before exit.
-    """
-    try:
-        from openjarvis.soul import Soul
-        before = len(Soul.list_souls())
-        Soul.close_all()
-        if before:
-            logger.info("Closed all %d cached souls gracefully", before)
-    except Exception:
-        pass
-    logger.info("Jarvis API Server shutting down")
 
 
 # ---------------------------------------------------------------------------

@@ -6,8 +6,8 @@
   <p>
     <a href="https://scalingintelligence.stanford.edu/blogs/openjarvis/"><img src="https://img.shields.io/badge/project-OpenJarvis-blue" alt="Project"></a>
     <a href="https://open-jarvis.github.io/OpenJarvis/"><img src="https://img.shields.io/badge/docs-mkdocs-blue" alt="Docs"></a>
-    <img src="https://img.shields.io/badge/python-%3E%3D3.10-blue" alt="Python">
-    <img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License">
+    <img src="https://img.shields.io/badge/python-%3E%3D3.10-blue" alt="Python 3.10+">
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
     <a href="https://discord.gg/YZZRxCAhmm"><img src="https://img.shields.io/badge/discord-join-7289da?logo=discord&logoColor=white" alt="Discord"></a>
     <a href="https://x.com/OpenJarvisAI"><img src="https://img.shields.io/badge/X-@OpenJarvisAI-black?logo=x&logoColor=white" alt="X / Twitter"></a>
   </p>
@@ -15,152 +15,281 @@
 
 ---
 
-> **[Documentation](https://open-jarvis.github.io/OpenJarvis/)**
->
-> **[Project Site](https://scalingintelligence.stanford.edu/blogs/openjarvis/)**
->
-> **[Leaderboard](https://open-jarvis.github.io/OpenJarvis/leaderboard/)**
->
-> **[Roadmap](https://open-jarvis.github.io/OpenJarvis/development/roadmap/)**
+**OpenJarvis** is a local-first personal AI agent framework developed at Stanford. It runs LLM-powered agents on your own hardware using [Ollama](https://ollama.com/) or cloud APIs, with a FastAPI backend, an optional Tauri desktop app, a Rust extension for high-performance memory indexing, and a rich CLI with eight built-in agents covering tasks from morning briefings to deep research and code assistance.
 
-## Why OpenJarvis?
+---
 
-Personal AI agents are exploding in popularity, but nearly all of them still route intelligence through cloud APIs. Your "personal" AI continues to depend on someone else's server. At the same time, our [Intelligence Per Watt](https://www.intelligence-per-watt.ai/) research showed that local language models already handle 88.7% of single-turn chat and reasoning queries, with intelligence efficiency improving 5.3× from 2023 to 2025. The models and hardware are increasingly ready. What has been missing is the software stack to make local-first personal AI practical.
+## What It Does
 
-OpenJarvis is that stack. It is a framework for local-first personal AI, built around three core ideas: shared primitives for building on-device agents; evaluations that treat energy, FLOPs, latency, and dollar cost as first-class constraints alongside accuracy; and a learning loop that improves models using local trace data. The goal is simple: make it possible to build personal AI agents that run locally by default, calling the cloud only when truly necessary. OpenJarvis aims to be both a research platform and a production foundation for local AI, in the spirit of PyTorch.
+OpenJarvis gives you a personal AI that runs on your machine, not someone else's server. It is built around three ideas:
+
+- **Local-first inference** — routes requests to the best engine available on your hardware (Ollama, MLX on Apple Silicon, vLLM on NVIDIA, llama.cpp CPU-only) and falls back to cloud APIs only when needed.
+- **Persistent memory and identity** — the Soul system gives every agent episodic, semantic, and procedural memory that survives across sessions and evolves over time.
+- **Learning loop** — traces from real use are fed back into DSPy / GEPA / SFT optimizers to continuously improve prompts and model weights on your data.
+
+## Features
+
+- **Eight built-in agents** — morning digest, deep research, code assistant, autonomous monitor, orchestrator, ReAct loop, OpenHands CodeAct, and simple chat.
+- **Soul system** — tiered memory (episodic / semantic / procedural), knowledge graph, emotional state model, and dream-cycle consolidation.
+- **Multi-engine routing** — Ollama, MLX, vLLM, SGLang, llama.cpp, LM Studio, Exo, Nexa, Apple Foundation Models, Lemonade (AMD), and cloud providers (OpenAI, Anthropic, Google).
+- **Composable tools** — web search, file I/O, shell exec, git, code interpreter, HTTP requests, browser automation (Playwright), calculator, REPL, finance data, and more.
+- **Channels** — Telegram, Discord, Slack, WhatsApp, Signal, email, IRC, Mattermost, Matrix, and more.
+- **Scheduler** — cron-based task runner for recurring agents.
+- **FastAPI server** — REST and SSE streaming endpoints for chat, soul, projects, voice, and knowledge graph.
+- **Rust extension** — high-performance memory indexing and security scanning (optional; degrades gracefully when not built).
+- **Skills** — install and share agent skills from Hermes, OpenClaw, or any GitHub repo.
+- **Security** — input/output scanning, PII redaction, SSRF protection, rate limiting, and a signed Merkle audit log.
 
 ## Installation
 
-**macOS / Linux:**
+### Quick install (macOS / Linux)
 
 ```bash
-curl -fsSL https://openjarvis.ai/install.sh | bash
-```
-
-**Windows:** the installer is a `bash` script and won't run in PowerShell or `cmd`. Pick one of:
-
-- **WSL2 (recommended for the CLI / Python SDK)** — one-time setup in an admin PowerShell, then run the same `curl … | bash` inside Ubuntu:
-  ```powershell
-  wsl --install -d Ubuntu-24.04
-  ```
-  Open the Ubuntu shell that gets installed, then follow [WSL2 install instructions](https://open-jarvis.github.io/OpenJarvis/getting-started/wsl2/).
-- **Desktop app** — download the `.exe` from the [Releases page](https://github.com/open-jarvis/OpenJarvis/releases) for the GUI experience, no terminal required.
-
-> **If `curl` fails on `openjarvis.ai` with `sslv3 alert handshake failure`** ([issue #337](https://github.com/open-jarvis/OpenJarvis/issues/337)), use the GitHub mirror until the domain is restored:
->
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/open-jarvis/OpenJarvis/main/scripts/install/install.sh | bash
-> ```
->
-> Same script, served straight from this repo. The installer itself fetches everything else (uv, the project source, Ollama) from independent CDNs, so the rest of install proceeds normally.
-
-That's it. The installer handles everything: uv, the Python venv, Ollama, and pulling a small starter model. About 3 minutes on a typical broadband connection. Then:
-
-```bash
+curl -fsSL https://raw.githubusercontent.com/open-jarvis/OpenJarvis/main/scripts/install/install.sh | bash
 jarvis
 ```
 
-The Rust extension and bigger models continue downloading in the background while you chat. Run `jarvis doctor` to see status.
+The installer sets up `uv`, a Python virtual environment, Ollama, and a starter model. Takes about three minutes on a typical connection.
 
-**Platforms:** macOS (Intel + Apple Silicon), Linux, WSL2 on Windows. Native Windows is not supported — use WSL2 or the desktop binary.
+> If `openjarvis.ai` SSL fails (issue #337), use the GitHub mirror URL above — same script, no dependency on the custom domain.
 
-**Manual install / contributors:** see [docs/getting-started/install.md](docs/getting-started/install.md).
+### Manual install
+
+**Requirements:** Python 3.10+, [uv](https://docs.astral.sh/uv/) (recommended) or pip.
+
+```bash
+git clone https://github.com/open-jarvis/OpenJarvis.git
+cd OpenJarvis
+
+# With uv (recommended):
+uv sync
+source .venv/bin/activate    # or: prefix every command with `uv run`
+
+# With pip:
+pip install -r requirements.txt
+pip install -e .
+```
+
+Install optional extras to unlock additional features:
+
+```bash
+# Server (FastAPI + uvicorn)
+uv sync --extra server
+
+# Cloud LLM providers
+uv sync --extra inference-cloud
+
+# Memory with FAISS vector search
+uv sync --extra memory-faiss
+
+# Playwright browser automation
+uv sync --extra browser
+
+# Full dev environment
+uv sync --extra dev
+```
+
+### Build the Rust extension (optional)
+
+The Rust extension accelerates memory indexing and security scanning. Without it the Python fallbacks are used automatically.
+
+```bash
+pip install maturin
+cd rust && maturin develop --release
+```
+
+### Windows
+
+Native Windows is not supported. Use **WSL2** (recommended) or download the desktop binary from the [Releases page](https://github.com/open-jarvis/OpenJarvis/releases).
+
+```powershell
+# One-time WSL2 setup (admin PowerShell):
+wsl --install -d Ubuntu-24.04
+```
+
+Then follow the Linux install steps inside the Ubuntu shell.
 
 ## Quick Start
 
 ```bash
-curl -fsSL https://openjarvis.ai/install.sh | bash
+# Interactive chat
 jarvis
+
+# Ask a single question
+jarvis ask "What is the capital of France?"
+
+# Start the API server
+jarvis serve
+
+# Generate a morning digest
+jarvis digest --fresh
+
+# Index documents into memory
+jarvis memory index ./docs/
 ```
 
-`jarvis init --preset <name>` switches to a starter config. Available presets: `morning-digest-mac`, `morning-digest-linux`, `morning-digest-minimal`, `deep-research`, `code-assistant`, `scheduled-monitor`, `chat-simple`.
+### Starter presets
 
-## Starter Configs
-
-Install any preset with one command:
+Switch to a pre-configured use case in one command:
 
 ```bash
-uv run jarvis init --preset morning-digest-mac   # or any preset below
+jarvis init --preset morning-digest-mac    # spoken daily briefing (macOS)
+jarvis init --preset deep-research         # multi-hop research with citations
+jarvis init --preset code-assistant        # code execution + file I/O
+jarvis init --preset chat-simple           # lightweight conversation
 ```
 
-> Prefix every `jarvis ...` invocation with `uv run`, or activate the venv first (`source .venv/bin/activate`) so plain `jarvis ...` works for the rest of your shell session.
+## Usage Examples
 
-| Preset | Use Case | What it does |
-|--------|----------|-------------|
-| `morning-digest-mac` | Daily Briefing (Mac) | Spoken briefing from email, calendar, health, news with Jarvis voice |
-| `morning-digest-linux` | Daily Briefing (Linux) | Same, with vLLM support for GPU servers |
-| `morning-digest-minimal` | Daily Briefing (minimal) | Just Gmail + Calendar, runs on any machine |
-| `deep-research` | Research Assistant | Multi-hop research across indexed docs with citations |
-| `code-assistant` | Code Companion | Agent with code execution, file I/O, and shell access |
-| `scheduled-monitor` | Persistent Monitor | Stateful agent that runs on a schedule with memory |
-| `chat-simple` | Simple Chat | Lightweight conversation, no tools needed |
+### Python SDK
+
+```python
+from openjarvis import Jarvis
+
+# Simple question
+with Jarvis() as j:
+    answer = j.ask("Summarize the key points of quantum computing.")
+    print(answer)
+
+# Specify engine and model explicitly
+j = Jarvis(engine_key="ollama", model="qwen3.5:9b")
+result = j.ask_full("Explain backpropagation", max_tokens=512)
+print(result["content"])
+j.close()
+
+# Streaming tokens
+import asyncio
+
+async def stream_example():
+    async with Jarvis() as j:
+        async for token in j.ask_stream("Write a haiku about the ocean"):
+            print(token, end="", flush=True)
+
+asyncio.run(stream_example())
+
+# Memory indexing and search
+with Jarvis() as j:
+    j.memory.index("./my_notes/")
+    hits = j.memory.search("meeting notes from last week", top_k=5)
+    for hit in hits:
+        print(hit["content"], hit["score"])
+```
+
+### CLI
 
 ```bash
-# Example: Morning Digest on Mac
-uv run jarvis init --preset morning-digest-mac
-uv run jarvis connect gdrive          # one OAuth flow covers Gmail, Calendar, Tasks
-uv run jarvis digest --fresh          # generate and play your first briefing
+# Ask with web search enabled
+jarvis ask "Latest developments in fusion energy" --tools web_search
 
-# Example: Deep Research
-uv run jarvis init --preset deep-research
-uv run jarvis memory index ./docs/    # requires the Rust extension — see Setup above
-uv run jarvis ask "Summarize all emails about Project X"
+# Run an agent with multiple tools
+jarvis ask "Read README.md, then write a test for the main function" \
+    --agent orchestrator \
+    --tools file_read,code_interpreter,file_write
+
+# Deep research mode (multi-hop, cited)
+jarvis ask "Impact of LLM scaling laws on hardware roadmaps" --research
+
+# Soul memory commands
+jarvis soul show              # current soul state
+jarvis soul remember "I prefer concise explanations"
+jarvis soul recall "user preferences"
+jarvis soul reflect           # run a dream/consolidation cycle
 ```
 
-### Skills
-
-Skills teach agents how to better use tools and improve their reasoning. Every skill is a tool — agents discover them from a catalog and invoke them on demand.
+### API Server
 
 ```bash
-# Install skills from public sources
-jarvis skill install hermes:arxiv
-jarvis skill sync hermes --category research
+# Start the server
+uvicorn app:app --host 0.0.0.0 --port 9099
 
-# Use skills with any agent
-jarvis ask "Use the code-explainer skill to explain this Python code: for i in range(5): print(i*2)"
-
-# Optimize skills from your trace history
-jarvis optimize skills --policy dspy
-
-# Benchmark the impact
-jarvis bench skills --max-samples 5 --seeds 42
+# or
+jarvis serve --port 9099
 ```
 
-Import from [Hermes Agent](https://github.com/NousResearch/hermes-agent) (~150 skills), [OpenClaw](https://github.com/openclaw/skills) (~13,700 community skills), or any GitHub repo. Skills follow the [agentskills.io](https://agentskills.io/specification) open standard.
+```bash
+# Chat endpoint
+curl -X POST http://localhost:9099/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello, what can you do?"}'
 
-See the [Skills User Guide](https://open-jarvis.github.io/OpenJarvis/user-guide/skills/) and [Skills Tutorial](https://open-jarvis.github.io/OpenJarvis/tutorials/skills-workflow/) for details.
+# Streaming chat
+curl -X POST http://localhost:9099/v1/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Tell me a short story", "session_id": "demo"}'
+
+# Health check
+curl http://localhost:9099/health
+```
 
 ### Built-in Agents
 
-OpenJarvis ships with eight built-in agents across three execution modes (on-demand, scheduled, continuous):
-
-| Agent | Type | What it does |
+| Agent | Mode | Description |
 |-------|------|-------------|
-| `morning_digest` | Scheduled | Daily briefing from email, calendar, health, news — with TTS audio |
+| `morning_digest` | Scheduled | Spoken briefing from email, calendar, health, and news with TTS audio |
 | `deep_research` | On-demand | Multi-hop research with citations across web and local docs |
-| `monitor_operative` | Continuous | Long-horizon monitoring with memory, compression, and retrieval |
+| `monitor_operative` | Continuous | Long-horizon monitoring with memory compression and retrieval |
 | `orchestrator` | On-demand | Multi-turn reasoning with automatic tool selection |
-| `native_react` | On-demand | ReAct (Thought-Action-Observation) loop agent |
+| `native_react` | On-demand | ReAct (Thought-Action-Observation) loop |
 | `operative` | Continuous | Persistent autonomous agent with state management |
 | `native_openhands` | On-demand | CodeAct — generates and executes Python code |
 | `simple` | On-demand | Single-turn chat, no tools |
 
-See the [User Guide](https://open-jarvis.github.io/OpenJarvis/user-guide/morning-digest/) and [Tutorials](https://open-jarvis.github.io/OpenJarvis/tutorials/) for detailed setup instructions.
+## Tech Stack
 
-Full documentation — including Docker deployment, cloud engines, development setup, and tutorials — at **[open-jarvis.github.io/OpenJarvis](https://open-jarvis.github.io/OpenJarvis/)**.
+| Layer | Technology |
+|-------|-----------|
+| Language | Python 3.10+ |
+| API framework | FastAPI + uvicorn + Pydantic v2 |
+| CLI | Click |
+| Local inference | Ollama, MLX, vLLM, SGLang, llama.cpp, LM Studio, Exo, Nexa, Apple FM, Lemonade |
+| Cloud inference | OpenAI, Anthropic, Google Gemini, LiteLLM |
+| Memory | SQLite (default), FAISS, ColBERT, BM25 |
+| Performance extension | Rust (via PyO3 / maturin) |
+| Desktop app | Tauri v2 (Rust + React) |
+| Package manager | uv / hatchling |
+| Learning | DSPy, GEPA, SFT (PyTorch + transformers) |
+| Security | Rust-accelerated scanners, Merkle audit log |
 
-## Community
+## Configuration
 
-- **GitHub:** [github.com/open-jarvis/OpenJarvis](https://github.com/open-jarvis/OpenJarvis)
-- **Discord:** [discord.gg/YZZRxCAhmm](https://discord.gg/YZZRxCAhmm)
-- **X / Twitter:** [@OpenJarvisAI](https://x.com/OpenJarvisAI)
-- **Docs:** [open-jarvis.github.io/OpenJarvis](https://open-jarvis.github.io/OpenJarvis/)
+OpenJarvis reads `~/.openjarvis/config.toml`. Generate a starter file with:
+
+```bash
+jarvis init
+```
+
+Key settings:
+
+```toml
+[engine]
+default = "ollama"          # ollama | mlx | vllm | sglang | llamacpp | cloud
+
+[intelligence]
+default_model = "qwen3.5:9b"
+
+[agent]
+default_agent = "simple"
+max_turns = 10
+
+[server]
+host = "127.0.0.1"
+port = 8000
+```
+
+See `jarvis config --help` and the [full config reference](https://open-jarvis.github.io/OpenJarvis/) for all options.
+
+## Rust Extension
+
+The Rust extension (`rust/`) provides:
+
+- High-throughput memory index operations (BM25, embedding search)
+- Zero-copy JSON parsing for engine responses
+- Security scanning (prompt injection, PII, secret detection)
+- Optimisation result persistence (SQLite)
+
+Build it once with `maturin develop --release`. Without it, `RUST_AVAILABLE` is `False` and Python fallbacks handle all operations transparently.
 
 ## Contributing
-
-We welcome contributions! See the [Contributing Guide](CONTRIBUTING.md) for incentives, contribution types, and the PR process.
-
-Quick start for contributors:
 
 ```bash
 git clone https://github.com/open-jarvis/OpenJarvis.git
@@ -170,37 +299,38 @@ uv run pre-commit install
 uv run pytest tests/ -v
 ```
 
-Browse the [Roadmap](https://open-jarvis.github.io/OpenJarvis/development/roadmap/) for areas where help is needed. Comment **"take"** on any issue to get auto-assigned.
+Browse the [Roadmap](https://open-jarvis.github.io/OpenJarvis/development/roadmap/) for areas where help is wanted. Comment **"take"** on any GitHub issue to be auto-assigned.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for incentives, guidelines, and the PR process.
+
+## Community
+
+- **Docs:** [open-jarvis.github.io/OpenJarvis](https://open-jarvis.github.io/OpenJarvis/)
+- **Discord:** [discord.gg/YZZRxCAhmm](https://discord.gg/YZZRxCAhmm)
+- **X / Twitter:** [@OpenJarvisAI](https://x.com/OpenJarvisAI)
+- **GitHub:** [github.com/open-jarvis/OpenJarvis](https://github.com/open-jarvis/OpenJarvis)
 
 ## About
 
 OpenJarvis is part of [Intelligence Per Watt](https://www.intelligence-per-watt.ai/), a research initiative studying the intelligence efficiency of AI systems. The project is developed at [Hazy Research](https://hazyresearch.stanford.edu/) and the [Scaling Intelligence Lab](https://scalingintelligence.stanford.edu/) at [Stanford SAIL](https://ai.stanford.edu/).
 
-## Sponsors
-
-<p>
-  <a href="https://www.laude.org/">Laude Institute</a> &bull;
-  <a href="https://datascience.stanford.edu/marlowe">Stanford Marlowe</a> &bull;
-  <a href="https://cloud.google.com/">Google Cloud Platform</a> &bull;
-  <a href="https://lambda.ai/">Lambda Labs</a> &bull;
-  <a href="https://ollama.com/">Ollama</a> &bull;
-  <a href="https://research.ibm.com/">IBM Research</a> &bull;
-  <a href="https://hai.stanford.edu/">Stanford HAI</a>
-</p>
-
 ## Citation
+
 ```bibtex
 @misc{saadfalcon2026openjarvispersonalaipersonal,
-      title={OpenJarvis: Personal AI, On Personal Devices}, 
-      author={Jon Saad-Falcon and Avanika Narayan and Robby Manihani and Tanvir Bhathal and Herumb Shandilya and Hakki Orhun Akengin and Gabriel Bo and Andrew Park and Matthew Hart and Caia Costello and Chuan Li and Christopher Ré and Azalia Mirhoseini},
+      title={OpenJarvis: Personal AI, On Personal Devices},
+      author={Jon Saad-Falcon and Avanika Narayan and Robby Manihani and Tanvir Bhathal
+              and Herumb Shandilya and Hakki Orhun Akengin and Gabriel Bo and Andrew Park
+              and Matthew Hart and Caia Costello and Chuan Li and Christopher Re
+              and Azalia Mirhoseini},
       year={2026},
       eprint={2605.17172},
       archivePrefix={arXiv},
       primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2605.17172}, 
+      url={https://arxiv.org/abs/2605.17172},
 }
 ```
 
 ## License
 
-[Apache 2.0](LICENSE)
+[MIT](LICENSE)

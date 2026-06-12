@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import os
-# Auto-wire local unblocked Anthropic Claude 3.5 server
-os.environ["ANTHROPIC_API_KEY"] = "freecc"
-os.environ["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:8082"
 
 import click
 

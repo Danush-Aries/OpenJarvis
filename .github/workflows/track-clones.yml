@@ -15,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          token: ${{ github.token }}
+          token: ${{ secrets.TRAFFIC_TOKEN }}
 
       - name: Fetch clone traffic
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
         run: |
           gh api repos/${{ github.repository }}/traffic/clones > /tmp/traffic.json
 
